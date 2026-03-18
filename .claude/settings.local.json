@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\yoavr\\\\Desktop\\\\VSProjects\\\\MyFinance\" /s)",
+      "Bash(npm --version)",
+      "Bash(npm info:*)",
+      "Bash(npx expo:*)",
+      "Bash(npm show:*)",
+      "Bash(npm create:*)",
+      "Bash(npx create-vite@latest . --template react-ts)",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Bash(git config:*)"
+    ]
+  }
+}
