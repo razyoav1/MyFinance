@@ -1,14 +1,19 @@
 import { useState } from 'react'
-import { Plus, Trash2, Pencil } from 'lucide-react'
-import { useGoals, addGoal, updateGoal, deleteGoal, addContribution, useGoalContributions } from '@/hooks/useGoals'
+import { Plus, Trash2, Pencil, ChevronDown } from 'lucide-react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '@/db'
+import { useGoals, addGoal, updateGoal, deleteGoal, addContribution } from '@/hooks/useGoals'
 import { SavingsGoal } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { LoadingSpinner } from '@/components/ui/Loading'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatCurrency } from '@/lib/currency'
+import { toast } from '@/store/useToastStore'
 import { CURRENCIES } from '@/types'
 import { format, differenceInMonths, parseISO } from 'date-fns'
 
@@ -20,17 +25,83 @@ const defaultForm = {
   icon: '🎯', color: '#6366f1', currentAmount: '0',
 }
 
+function GoalCard({
+  goal,
+  onEdit,
+  onContrib,
+  onDelete,
+}: {
+  goal: SavingsGoal
+  onEdit: () => void
+  onContrib: () => void
+  onDelete: () => void
+}) {
+  const pct = goal.targetAmount > 0 ? Math.min(100, (goal.currentAmount / goal.targetAmount) * 100) : 0
+  const remaining = goal.targetAmount - goal.currentAmount
+  const monthsLeft = goal.targetDate
+    ? Math.max(1, differenceInMonths(parseISO(goal.targetDate), new Date()))
+    : null
+  const monthlyNeeded = monthsLeft ? remaining / monthsLeft : null
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-3xl">{goal.icon}</span>
+          <div>
+            <h3 className="font-semibold text-[var(--color-text)]">{goal.name}</h3>
+            {goal.targetDate && (
+              <p className="text-xs text-[var(--color-text-muted)]">Target: {goal.targetDate}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {!goal.isCompleted && (
+            <button onClick={onContrib} className="p-1.5 rounded hover:bg-[var(--color-surface2)] text-[var(--color-primary)] text-xs font-medium">+ Add</button>
+          )}
+          <button onClick={onEdit} className="p-1.5 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)]"><Pencil size={13} /></button>
+          <button onClick={onDelete} className="p-1.5 rounded hover:bg-red-500/15 text-[var(--color-text-muted)] hover:text-red-500"><Trash2 size={13} /></button>
+        </div>
+      </div>
+
+      <ProgressBar value={pct} color={goal.color} />
+
+      <div className="flex justify-between text-sm mt-2">
+        <span className="font-semibold text-[var(--color-text)]">{formatCurrency(goal.currentAmount, goal.currency)}</span>
+        <span className="text-[var(--color-text-muted)]">{formatCurrency(goal.targetAmount, goal.currency)}</span>
+      </div>
+
+      <div className="flex justify-between text-xs text-[var(--color-text-muted)] mt-1">
+        <span>{pct.toFixed(0)}% complete</span>
+        {!goal.isCompleted && monthlyNeeded !== null && (
+          <span>{formatCurrency(monthlyNeeded, goal.currency)}/mo needed</span>
+        )}
+      </div>
+
+      {goal.isCompleted && (
+        <p className="text-xs text-emerald-500 mt-2 font-medium">✅ Goal achieved!</p>
+      )}
+    </div>
+  )
+}
+
 export function Goals() {
-  const goals = useGoals()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<SavingsGoal | undefined>()
   const [form, setForm] = useState(defaultForm)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState<SavingsGoal | undefined>()
+  const [showCompleted, setShowCompleted] = useState(false)
 
   const [contribOpen, setContribOpen] = useState(false)
   const [contribGoal, setContribGoal] = useState<SavingsGoal | undefined>()
   const [contribAmount, setContribAmount] = useState('')
   const [contribNote, setContribNote] = useState('')
+
+  const isLoading = useLiveQuery(() => db.savingsGoals.count()) === undefined
+  const goals = useGoals()
+
+  if (isLoading) return <LoadingSpinner />
 
   const setF = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -54,6 +125,7 @@ export function Goals() {
     }
     if (editing?.id) await updateGoal(editing.id, data)
     else await addGoal(data)
+    toast.success(editing ? 'Goal updated' : 'Goal created')
     setSaving(false)
     setFormOpen(false)
   }
@@ -62,8 +134,23 @@ export function Goals() {
   const handleContrib = async () => {
     if (!contribGoal?.id || !contribAmount) return
     await addContribution(contribGoal.id, parseFloat(contribAmount), format(new Date(), 'yyyy-MM-dd'), contribNote || undefined)
+    const newAmount = contribGoal.currentAmount + parseFloat(contribAmount)
+    if (newAmount >= contribGoal.targetAmount) {
+      toast.success(`🎉 Goal "${contribGoal.name}" completed!`)
+    } else {
+      toast.success('Contribution added')
+    }
     setContribOpen(false)
   }
+
+  const handleDelete = async () => {
+    if (!deleting?.id) return
+    await deleteGoal(deleting.id)
+    toast.success('Goal deleted')
+  }
+
+  const active = goals.filter(g => !g.isCompleted)
+  const completed = goals.filter(g => g.isCompleted)
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
@@ -80,55 +167,46 @@ export function Goals() {
           action={<Button onClick={openAdd} size="sm"><Plus size={14} /> Create Goal</Button>}
         />
       ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {goals.map(goal => {
-            const pct = goal.targetAmount > 0 ? Math.min(100, (goal.currentAmount / goal.targetAmount) * 100) : 0
-            const remaining = goal.targetAmount - goal.currentAmount
-            const monthsLeft = goal.targetDate
-              ? Math.max(1, differenceInMonths(parseISO(goal.targetDate), new Date()))
-              : null
-            const monthlyNeeded = monthsLeft ? remaining / monthsLeft : null
+        <>
+          {active.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {active.map(goal => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  onEdit={() => openEdit(goal)}
+                  onContrib={() => openContrib(goal)}
+                  onDelete={() => setDeleting(goal)}
+                />
+              ))}
+            </div>
+          )}
 
-            return (
-              <div key={goal.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-3xl">{goal.icon}</span>
-                    <div>
-                      <h3 className="font-semibold text-[var(--color-text)]">{goal.name}</h3>
-                      {goal.targetDate && (
-                        <p className="text-xs text-[var(--color-text-muted)]">Target: {goal.targetDate}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => openContrib(goal)} className="p-1.5 rounded hover:bg-[var(--color-surface2)] text-[var(--color-primary)] text-xs font-medium">+ Add</button>
-                    <button onClick={() => openEdit(goal)} className="p-1.5 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)]"><Pencil size={13} /></button>
-                    <button onClick={() => goal.id && deleteGoal(goal.id)} className="p-1.5 rounded hover:bg-red-500/15 text-[var(--color-text-muted)] hover:text-red-500"><Trash2 size={13} /></button>
-                  </div>
+          {completed.length > 0 && (
+            <div className="mt-6">
+              <button
+                onClick={() => setShowCompleted(v => !v)}
+                className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-muted)] mb-3 hover:text-[var(--color-text)] transition-colors"
+              >
+                <ChevronDown size={16} className={`transition-transform ${showCompleted ? 'rotate-0' : '-rotate-90'}`} />
+                Completed Goals ({completed.length})
+              </button>
+              {showCompleted && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {completed.map(goal => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      onEdit={() => openEdit(goal)}
+                      onContrib={() => openContrib(goal)}
+                      onDelete={() => setDeleting(goal)}
+                    />
+                  ))}
                 </div>
-
-                <ProgressBar value={pct} color={goal.color} />
-
-                <div className="flex justify-between text-sm mt-2">
-                  <span className="font-semibold text-[var(--color-text)]">{formatCurrency(goal.currentAmount, goal.currency)}</span>
-                  <span className="text-[var(--color-text-muted)]">{formatCurrency(goal.targetAmount, goal.currency)}</span>
-                </div>
-
-                <div className="flex justify-between text-xs text-[var(--color-text-muted)] mt-1">
-                  <span>{pct.toFixed(0)}% complete</span>
-                  {monthlyNeeded !== null && (
-                    <span>{formatCurrency(monthlyNeeded, goal.currency)}/mo needed</span>
-                  )}
-                </div>
-
-                {goal.isCompleted && (
-                  <p className="text-xs text-emerald-500 mt-2 font-medium">✅ Goal achieved!</p>
-                )}
-              </div>
-            )
-          })}
-        </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Add/Edit Goal Modal */}
@@ -203,6 +281,14 @@ export function Goals() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={!!deleting}
+        onClose={() => setDeleting(undefined)}
+        onConfirm={handleDelete}
+        title="Delete Goal"
+        message={`Delete "${deleting?.name}" and all its contributions? This cannot be undone.`}
+      />
     </div>
   )
 }

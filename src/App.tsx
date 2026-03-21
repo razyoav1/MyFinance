@@ -8,6 +8,8 @@ import { Investments } from '@/pages/Investments'
 import { Mortgage } from '@/pages/Mortgage'
 import { Goals } from '@/pages/Goals'
 import { SettingsPage } from '@/pages/Settings'
+import { Wealth } from '@/pages/Wealth'
+import { ToastContainer } from '@/components/ui/Toast'
 
 export default function App() {
   return (
@@ -21,6 +23,7 @@ export default function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard"    element={<Dashboard />} />
               <Route path="/transactions" element={<Transactions />} />
+              <Route path="/wealth"        element={<Wealth />} />
               <Route path="/investments"  element={<Investments />} />
               <Route path="/mortgage"     element={<Mortgage />} />
               <Route path="/goals"        element={<Goals />} />
@@ -30,6 +33,7 @@ export default function App() {
           <MobileNav />
         </div>
       </div>
+      <ToastContainer />
     </HashRouter>
   )
 }

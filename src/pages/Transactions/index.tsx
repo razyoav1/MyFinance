@@ -9,13 +9,18 @@ import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { LoadingSpinner } from '@/components/ui/Loading'
 import { Transaction } from '@/types'
 import { formatCurrency } from '@/lib/currency'
+import { useCurrencyStore } from '@/store/useCurrencyStore'
+import { toast } from '@/store/useToastStore'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 export function Transactions() {
   const now = new Date()
+  const { baseCurrency } = useCurrencyStore()
   const [filters, setFilters] = useState<TransactionFilters>({
     month: now.getMonth() + 1,
     year: now.getFullYear(),
@@ -24,23 +29,26 @@ export function Transactions() {
   const [search, setSearch] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Transaction | undefined>()
+  const [deleting, setDeleting] = useState<Transaction | undefined>()
 
-  const debouncedSearch = search // simple - no debounce needed for local
-  const transactions = useTransactions({ ...filters, search: debouncedSearch })
+  const transactions = useTransactions({ ...filters, search })
   const stats = useMonthlyStats(filters.year, filters.month)
-  const categories = useLiveQuery(() => db.categories.toArray()) ?? []
+  const categoriesRaw = useLiveQuery(() => db.categories.toArray())
+  const categories = categoriesRaw ?? []
   const catMap = Object.fromEntries(categories.map(c => [c.id!, c]))
+
+  if (categoriesRaw === undefined) return <LoadingSpinner />
 
   const set = (k: keyof TransactionFilters, v: unknown) =>
     setFilters(f => ({ ...f, [k]: v }))
 
-  const handleEdit = (t: Transaction) => {
-    setEditing(t)
-    setFormOpen(true)
-  }
-  const handleAdd = () => {
-    setEditing(undefined)
-    setFormOpen(true)
+  const handleEdit = (t: Transaction) => { setEditing(t); setFormOpen(true) }
+  const handleAdd = () => { setEditing(undefined); setFormOpen(true) }
+
+  const handleDelete = async () => {
+    if (!deleting?.id) return
+    await deleteTransaction(deleting.id)
+    toast.success('Transaction deleted')
   }
 
   return (
@@ -55,31 +63,23 @@ export function Transactions() {
       {/* Monthly stats strip */}
       <div className="grid grid-cols-3 gap-3 mb-4">
         {[
-          { label: 'Income', value: stats.income, icon: TrendingUp, color: 'text-emerald-500' },
-          { label: 'Expenses', value: stats.expenses, icon: TrendingDown, color: 'text-red-500' },
+          { label: 'Income', value: stats.income, color: 'text-emerald-500' },
+          { label: 'Expenses', value: stats.expenses, color: 'text-red-500' },
           { label: 'Net', value: stats.net, color: stats.net >= 0 ? 'text-emerald-500' : 'text-red-500' },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-center">
             <p className="text-xs text-[var(--color-text-muted)]">{label}</p>
-            <p className={`font-bold text-base ${color}`}>{formatCurrency(value, filters.year ? 'ILS' : 'ILS')}</p>
+            <p className={`font-bold text-base ${color}`}>{formatCurrency(value, baseCurrency)}</p>
           </div>
         ))}
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
-        <Select
-          value={filters.month}
-          onChange={e => set('month', parseInt(e.target.value))}
-          className="w-24"
-        >
+        <Select value={filters.month} onChange={e => set('month', parseInt(e.target.value))} className="w-24">
           {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
         </Select>
-        <Select
-          value={filters.year}
-          onChange={e => set('year', parseInt(e.target.value))}
-          className="w-24"
-        >
+        <Select value={filters.year} onChange={e => set('year', parseInt(e.target.value))} className="w-24">
           {[now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2].map(y => (
             <option key={y} value={y}>{y}</option>
           ))}
@@ -92,6 +92,16 @@ export function Transactions() {
           <option value="all">All types</option>
           <option value="income">Income</option>
           <option value="expense">Expense</option>
+        </Select>
+        <Select
+          value={filters.categoryId ?? ''}
+          onChange={e => set('categoryId', e.target.value ? parseInt(e.target.value) : undefined)}
+          className="w-40"
+        >
+          <option value="">All categories</option>
+          {categories.map(c => (
+            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+          ))}
         </Select>
         <Input
           placeholder="Search..."
@@ -133,40 +143,33 @@ export function Transactions() {
                     >
                       <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{t.date}</td>
                       <td className="px-4 py-3 font-medium text-[var(--color-text)]">
-                        {t.description}
-                        {t.isRecurring && (
-                          <span className="ml-2 text-xs text-[var(--color-text-muted)]">↻</span>
-                        )}
+                        <div>
+                          <span>
+                            {t.description}
+                            {t.isRecurring && <span className="ml-2 text-xs text-[var(--color-text-muted)]">↻</span>}
+                          </span>
+                          {t.notes && (
+                            <p className="text-xs text-[var(--color-text-muted)] font-normal mt-0.5">{t.notes}</p>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
-                        {cat && (
-                          <Badge color={cat.color}>{cat.icon} {cat.name}</Badge>
-                        )}
+                        {cat && <Badge color={cat.color}>{cat.icon} {cat.name}</Badge>}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <div className="flex flex-wrap gap-1">
-                          {t.tags.map(tag => (
-                            <Badge key={tag} variant="neutral">{tag}</Badge>
-                          ))}
+                          {t.tags.map(tag => <Badge key={tag} variant="neutral">{tag}</Badge>)}
                         </div>
                       </td>
-                      <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${
-                        t.type === 'income' ? 'text-emerald-500' : 'text-red-500'
-                      }`}>
+                      <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${t.type === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>
                         {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount, t.currency)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleEdit(t)}
-                            className="p-1.5 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)] transition-colors"
-                          >
+                          <button onClick={() => handleEdit(t)} className="p-1.5 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)] transition-colors">
                             <Pencil size={13} />
                           </button>
-                          <button
-                            onClick={() => t.id && deleteTransaction(t.id)}
-                            className="p-1.5 rounded hover:bg-red-500/15 text-[var(--color-text-muted)] hover:text-red-500 transition-colors"
-                          >
+                          <button onClick={() => setDeleting(t)} className="p-1.5 rounded hover:bg-red-500/15 text-[var(--color-text-muted)] hover:text-red-500 transition-colors">
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -175,12 +178,51 @@ export function Transactions() {
                   )
                 })}
               </tbody>
+              {/* Summary footer */}
+              {(() => {
+                const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+                const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+                const net = totalIncome - totalExpenses
+                return (
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--color-border)] bg-[var(--color-surface2)]">
+                      <td colSpan={4} className="px-4 py-2.5 text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                        {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+                        {totalIncome > 0 && totalExpenses > 0 && (
+                          <span className="ml-3 font-normal normal-case">
+                            <span className="text-emerald-500">+{formatCurrency(totalIncome, baseCurrency)}</span>
+                            <span className="mx-1 opacity-50">·</span>
+                            <span className="text-red-500">-{formatCurrency(totalExpenses, baseCurrency)}</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-2.5 text-right font-bold text-sm whitespace-nowrap ${net >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {net >= 0 ? '+' : '-'}{formatCurrency(Math.abs(net), baseCurrency)}
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )
+              })()}
             </table>
           </div>
         </div>
       )}
 
-      <TransactionForm open={formOpen} onClose={() => { setFormOpen(false); setEditing(undefined) }} editing={editing} />
+      <TransactionForm
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setEditing(undefined) }}
+        editing={editing}
+        onSaved={() => toast.success(editing ? 'Transaction updated' : 'Transaction added')}
+      />
+
+      <ConfirmModal
+        open={!!deleting}
+        onClose={() => setDeleting(undefined)}
+        onConfirm={handleDelete}
+        title="Delete Transaction"
+        message={`Delete "${deleting?.description}"? This cannot be undone.`}
+      />
     </div>
   )
 }

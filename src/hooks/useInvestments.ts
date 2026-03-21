@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db'
 import { InvestmentHolding, InvestmentPriceHistory } from '@/types'
 import { calcInvestmentGain } from '@/lib/financeCalc'
+import { useCurrencyStore } from '@/store/useCurrencyStore'
+import { convertCurrency } from '@/lib/currency'
 
 export function useInvestments() {
   return useLiveQuery(async () => {
@@ -15,18 +17,22 @@ export function useInvestments() {
   }) ?? []
 }
 
+// Portfolio totals are always expressed in USD.
+// Holdings in other currencies (e.g. ILS) are converted to USD before summing.
 export function usePortfolioTotal() {
+  const rates = useCurrencyStore(s => s.exchangeRates)
   return useLiveQuery(async () => {
     const holdings = await db.investmentHoldings.toArray()
-    const totalInvested = holdings.reduce((s, h) => s + h.quantity * h.purchasePrice, 0)
-    const totalCurrent = holdings.reduce((s, h) => s + h.quantity * h.currentPrice, 0)
+    const toUSD = (amount: number, currency: string) => convertCurrency(amount, currency, 'USD', rates)
+    const totalInvested = holdings.reduce((s, h) => s + toUSD(h.quantity * h.purchasePrice, h.purchaseCurrency), 0)
+    const totalCurrent  = holdings.reduce((s, h) => s + toUSD(h.quantity * h.currentPrice,  h.currentCurrency),  0)
     return {
       totalInvested,
       totalCurrent,
       gain: totalCurrent - totalInvested,
       gainPercent: totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested) * 100 : 0,
     }
-  }) ?? { totalInvested: 0, totalCurrent: 0, gain: 0, gainPercent: 0 }
+  }, [rates]) ?? { totalInvested: 0, totalCurrent: 0, gain: 0, gainPercent: 0 }
 }
 
 export async function addInvestment(data: Omit<InvestmentHolding, 'id'>) {
@@ -55,12 +61,13 @@ export async function updatePrice(id: number, price: number, currency: string) {
 }
 
 export function usePortfolioHistory(holdingId?: number) {
+  const rates = useCurrencyStore(s => s.exchangeRates)
   return useLiveQuery(async () => {
     let history: InvestmentPriceHistory[]
     if (holdingId) {
       history = await db.investmentPriceHistory.where('holdingId').equals(holdingId).sortBy('date')
     } else {
-      // All holdings: aggregate by date
+      // All holdings: aggregate by date, always converting to USD
       const allHistory = await db.investmentPriceHistory.orderBy('date').toArray()
       const holdings = await db.investmentHoldings.toArray()
       const holdingMap = Object.fromEntries(holdings.map(h => [h.id!, h]))
@@ -69,12 +76,14 @@ export function usePortfolioHistory(holdingId?: number) {
       for (const p of allHistory) {
         const holding = holdingMap[p.holdingId]
         if (!holding) continue
-        byDate[p.date] = (byDate[p.date] ?? 0) + p.price * holding.quantity
+        const currency = p.currency || holding.currentCurrency
+        const valueUSD = convertCurrency(p.price * holding.quantity, currency, 'USD', rates)
+        byDate[p.date] = (byDate[p.date] ?? 0) + valueUSD
       }
       return Object.entries(byDate)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, value]) => ({ date, value }))
     }
     return history
-  }, [holdingId]) ?? []
+  }, [holdingId, rates]) ?? []
 }

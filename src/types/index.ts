@@ -104,6 +104,19 @@ export interface NetWorthSnapshot {
   currency: string
 }
 
+export type BankAccountType = 'checking' | 'savings' | 'credit' | 'cash'
+
+export interface BankAccount {
+  id?: number
+  name: string
+  type: BankAccountType
+  balance: number       // positive = asset, negative = credit card debt
+  currency: string
+  icon: string
+  notes?: string
+  updatedAt: string
+}
+
 export interface AmortizationRow {
   month: number
   date: string

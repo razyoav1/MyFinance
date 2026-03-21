@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react'
 import { useInvestments, usePortfolioTotal, usePortfolioHistory, addInvestment, updateInvestment, deleteInvestment, updatePrice } from '@/hooks/useInvestments'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '@/db'
 import { InvestmentHolding, CURRENCIES } from '@/types'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -9,8 +11,13 @@ import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { LoadingSpinner } from '@/components/ui/Loading'
 import { formatCurrency } from '@/lib/currency'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { toast } from '@/store/useToastStore'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts'
+import { useCurrencyStore } from '@/store/useCurrencyStore'
+import { convertCurrency } from '@/lib/currency'
 import { format } from 'date-fns'
 
 const ASSET_TYPES = ['stock', 'etf', 'crypto', 'other'] as const
@@ -22,20 +29,47 @@ const defaultForm = {
   currentPrice: '', currentCurrency: 'USD', notes: '',
 }
 
+const assetBadgeColor: Record<string, string> = {
+  stock: '#6366f1', etf: '#3b82f6', crypto: '#f59e0b', other: '#94a3b8',
+}
+
+const HOLDING_COLORS = [
+  '#6366f1','#10b981','#f59e0b','#3b82f6','#ec4899',
+  '#8b5cf6','#14b8a6','#f97316','#ef4444','#0ea5e9',
+  '#84cc16','#a855f7','#06b6d4','#eab308','#64748b',
+]
+
 export function Investments() {
-  const holdings = useInvestments()
-  const portfolio = usePortfolioTotal()
-  const history = usePortfolioHistory() as { date: string; value: number }[]
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<InvestmentHolding | undefined>()
   const [form, setForm] = useState(defaultForm)
   const [saving, setSaving] = useState(false)
   const [editingPrice, setEditingPrice] = useState<number | null>(null)
   const [priceInput, setPriceInput] = useState('')
+  const [deleting, setDeleting] = useState<InvestmentHolding | undefined>()
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [totalValueMode, setTotalValueMode] = useState(false)
+
+  const rates = useCurrencyStore(s => s.exchangeRates)
+  const isLoading = useLiveQuery(() => db.investmentHoldings.count()) === undefined
+  const holdings = useInvestments()
+  const portfolio = usePortfolioTotal()
+  const history = usePortfolioHistory() as { date: string; value: number }[]
+
+  if (isLoading) return <LoadingSpinner />
+
+  // Build pie data: each holding's current value converted to USD
+  const pieData = holdings.map((h, i) => ({
+    name: h.symbol,
+    fullName: h.name,
+    value: convertCurrency(h.currentValue, h.currentCurrency, 'USD', rates),
+    color: HOLDING_COLORS[i % HOLDING_COLORS.length],
+  }))
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0)
 
   const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
-  const openAdd = () => { setEditing(undefined); setForm(defaultForm); setFormOpen(true) }
+  const openAdd = () => { setEditing(undefined); setForm(defaultForm); setTotalValueMode(false); setFormOpen(true) }
   const openEdit = (h: InvestmentHolding) => {
     setEditing(h)
     setForm({
@@ -44,16 +78,19 @@ export function Investments() {
       purchaseCurrency: h.purchaseCurrency, purchaseDate: h.purchaseDate,
       currentPrice: String(h.currentPrice), currentCurrency: h.currentCurrency, notes: h.notes ?? '',
     })
+    // If quantity is 1, assume it was added in total value mode
+    setTotalValueMode(h.quantity === 1)
     setFormOpen(true)
   }
 
   const handleSave = async () => {
     setSaving(true)
+    const qty = totalValueMode ? 1 : parseFloat(form.quantity)
     const data: Omit<InvestmentHolding, 'id'> = {
       symbol: form.symbol.toUpperCase(),
       name: form.name,
       assetType: form.assetType,
-      quantity: parseFloat(form.quantity),
+      quantity: qty,
       purchasePrice: parseFloat(form.purchasePrice),
       purchaseCurrency: form.purchaseCurrency,
       purchaseDate: form.purchaseDate,
@@ -64,6 +101,7 @@ export function Investments() {
     }
     if (editing?.id) await updateInvestment(editing.id, data)
     else await addInvestment(data)
+    toast.success(editing ? 'Holding updated' : 'Holding added')
     setSaving(false)
     setFormOpen(false)
   }
@@ -72,13 +110,18 @@ export function Investments() {
     const price = parseFloat(priceInput)
     if (isNaN(price)) return
     await updatePrice(id, price, currency)
+    toast.success('Price updated')
     setEditingPrice(null)
     setPriceInput('')
   }
 
-  const assetBadgeColor: Record<string, string> = {
-    stock: '#6366f1', etf: '#3b82f6', crypto: '#f59e0b', other: '#94a3b8',
+  const handleDelete = async () => {
+    if (!deleting?.id) return
+    await deleteInvestment(deleting.id)
+    toast.success('Holding deleted')
   }
+
+  const filtered = typeFilter === 'all' ? holdings : holdings.filter(h => h.assetType === typeFilter)
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
@@ -102,23 +145,84 @@ export function Investments() {
         ))}
       </div>
 
-      {/* Portfolio history chart */}
-      {history.length > 1 && (
-        <Card className="mb-4">
-          <CardHeader><CardTitle>Portfolio Value Over Time</CardTitle></CardHeader>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={history} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
-              <Tooltip
-                contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}
-                formatter={(val: number) => formatCurrency(val, 'USD')}
-              />
-              <Line type="monotone" dataKey="value" stroke="var(--color-primary)" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
+      {/* Charts row */}
+      {holdings.length > 0 && (
+        <div className={`grid gap-4 mb-4 ${history.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1 max-w-md'}`}>
+
+          {/* Portfolio history chart */}
+          {history.length > 1 && (
+            <Card>
+              <CardHeader><CardTitle>Portfolio Value Over Time</CardTitle></CardHeader>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={history} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
+                  <Tooltip
+                    contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}
+                    formatter={(val: number) => formatCurrency(val, 'USD')}
+                  />
+                  <Line type="monotone" dataKey="value" stroke="var(--color-primary)" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {/* Holdings weight donut */}
+          <Card>
+            <CardHeader><CardTitle>Holdings Weight</CardTitle></CardHeader>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85}>
+                  {pieData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}
+                  labelStyle={{ color: 'var(--color-text)' }}
+                  formatter={(val: number, _name, props) => [
+                    `${formatCurrency(val, 'USD')} (${pieTotal > 0 ? ((val / pieTotal) * 100).toFixed(1) : 0}%)`,
+                    props.payload.fullName,
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className={`mt-1 grid gap-x-4 gap-y-1.5 px-2 pb-2 ${
+              pieData.length >= 9 ? 'grid-cols-3' : pieData.length >= 5 ? 'grid-cols-2' : 'grid-cols-1'
+            }`}>
+              {pieData.map(entry => (
+                <div key={entry.name} className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                  <span className="text-xs text-[var(--color-text)] truncate font-medium">{entry.name}</span>
+                  <span className="text-xs text-[var(--color-text-muted)] ml-auto shrink-0">
+                    {pieTotal > 0 ? ((entry.value / pieTotal) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+        </div>
+      )}
+
+      {/* Asset type filter */}
+      {holdings.length > 0 && (
+        <div className="flex gap-2 mb-3">
+          {['all', ...ASSET_TYPES].map(t => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                typeFilter === t
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface2)]'
+              }`}
+            >
+              {t === 'all' ? 'All' : t.toUpperCase()}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Holdings list */}
@@ -143,8 +247,8 @@ export function Investments() {
                 </tr>
               </thead>
               <tbody>
-                {holdings.map((h, i) => (
-                  <tr key={h.id} className={`border-b border-[var(--color-border)] hover:bg-[var(--color-surface2)] transition-colors ${i === holdings.length - 1 ? 'border-0' : ''}`}>
+                {filtered.map((h, i) => (
+                  <tr key={h.id} className={`border-b border-[var(--color-border)] hover:bg-[var(--color-surface2)] transition-colors ${i === filtered.length - 1 ? 'border-0' : ''}`}>
                     <td className="px-4 py-3">
                       <div>
                         <p className="font-semibold text-[var(--color-text)]">{h.symbol}</p>
@@ -154,7 +258,7 @@ export function Investments() {
                     <td className="px-4 py-3">
                       <Badge color={assetBadgeColor[h.assetType]}>{h.assetType.toUpperCase()}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-[var(--color-text)]">{h.quantity}</td>
+                    <td className="px-4 py-3 text-[var(--color-text)]">{h.quantity === 1 ? '—' : h.quantity}</td>
                     <td className="px-4 py-3 text-[var(--color-text)]">{formatCurrency(h.costBasis, h.purchaseCurrency)}</td>
                     <td className="px-4 py-3 font-medium text-[var(--color-text)]">{formatCurrency(h.currentValue, h.currentCurrency)}</td>
                     <td className={`px-4 py-3 font-semibold ${h.gainAbsolute >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -189,7 +293,7 @@ export function Investments() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <button onClick={() => openEdit(h)} className="p-1.5 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)]"><Pencil size={13} /></button>
-                        <button onClick={() => h.id && deleteInvestment(h.id)} className="p-1.5 rounded hover:bg-red-500/15 text-[var(--color-text-muted)] hover:text-red-500"><Trash2 size={13} /></button>
+                        <button onClick={() => setDeleting(h)} className="p-1.5 rounded hover:bg-red-500/15 text-[var(--color-text-muted)] hover:text-red-500"><Trash2 size={13} /></button>
                       </div>
                     </td>
                   </tr>
@@ -210,30 +314,85 @@ export function Investments() {
           <Select label="Asset Type" value={form.assetType} onChange={e => setF('assetType', e.target.value)}>
             {ASSET_TYPES.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
           </Select>
-          <div className="flex gap-2">
-            <Input label="Quantity" type="number" step="0.0001" value={form.quantity} onChange={e => setF('quantity', e.target.value)} className="flex-1" />
-            <Input label="Purchase Date" type="date" value={form.purchaseDate} onChange={e => setF('purchaseDate', e.target.value)} className="flex-1" />
+
+          {/* Input mode toggle */}
+          <div className="flex rounded-lg overflow-hidden border border-[var(--color-border)]">
+            {[
+              { value: false, label: 'Per-unit price' },
+              { value: true, label: 'Total value' },
+            ].map(({ value, label }) => (
+              <button
+                key={label}
+                onClick={() => setTotalValueMode(value)}
+                className={`flex-1 py-1.5 text-xs font-medium transition-colors ${
+                  totalValueMode === value
+                    ? 'bg-[var(--color-primary)] text-white'
+                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface2)]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <div className="flex gap-2">
-            <Input label="Purchase Price" type="number" step="0.01" value={form.purchasePrice} onChange={e => setF('purchasePrice', e.target.value)} className="flex-1" />
-            <Select label="Currency" value={form.purchaseCurrency} onChange={e => setF('purchaseCurrency', e.target.value)} className="w-24">
-              {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-            </Select>
-          </div>
-          <div className="flex gap-2">
-            <Input label="Current Price" type="number" step="0.01" value={form.currentPrice} onChange={e => setF('currentPrice', e.target.value)} className="flex-1" />
-            <Select label="Currency" value={form.currentCurrency} onChange={e => setF('currentCurrency', e.target.value)} className="w-24">
-              {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-            </Select>
-          </div>
+
+          {totalValueMode ? (
+            <>
+              <div className="flex gap-2">
+                <Input label="Total Purchase Value" type="number" step="0.01" placeholder="5000" value={form.purchasePrice} onChange={e => setF('purchasePrice', e.target.value)} className="flex-1" />
+                <Select label="Currency" value={form.purchaseCurrency} onChange={e => setF('purchaseCurrency', e.target.value)} className="w-24">
+                  {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Input label="Current Total Value" type="number" step="0.01" placeholder="7500" value={form.currentPrice} onChange={e => setF('currentPrice', e.target.value)} className="flex-1" />
+                <Select label="Currency" value={form.currentCurrency} onChange={e => setF('currentCurrency', e.target.value)} className="w-24">
+                  {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                </Select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Input label="Quantity" type="number" step="0.0001" value={form.quantity} onChange={e => setF('quantity', e.target.value)} className="flex-1" />
+                <Input label="Purchase Date" type="date" value={form.purchaseDate} onChange={e => setF('purchaseDate', e.target.value)} className="flex-1" />
+              </div>
+              <div className="flex gap-2">
+                <Input label="Purchase Price (per unit)" type="number" step="0.01" value={form.purchasePrice} onChange={e => setF('purchasePrice', e.target.value)} className="flex-1" />
+                <Select label="Currency" value={form.purchaseCurrency} onChange={e => setF('purchaseCurrency', e.target.value)} className="w-24">
+                  {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Input label="Current Price (per unit)" type="number" step="0.01" value={form.currentPrice} onChange={e => setF('currentPrice', e.target.value)} className="flex-1" />
+                <Select label="Currency" value={form.currentCurrency} onChange={e => setF('currentCurrency', e.target.value)} className="w-24">
+                  {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                </Select>
+              </div>
+            </>
+          )}
+
+          <Input label="Purchase Date" type="date" value={form.purchaseDate} onChange={e => setF('purchaseDate', e.target.value)} className={totalValueMode ? '' : 'hidden'} />
+
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving || !form.symbol || !form.name || !form.quantity || !form.purchasePrice}>
+            <Button
+              className="flex-1"
+              onClick={handleSave}
+              disabled={saving || !form.symbol || !form.name || (!totalValueMode && !form.quantity) || !form.purchasePrice}
+            >
               {saving ? 'Saving...' : editing ? 'Save' : 'Add Holding'}
             </Button>
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={!!deleting}
+        onClose={() => setDeleting(undefined)}
+        onConfirm={handleDelete}
+        title="Delete Holding"
+        message={`Delete ${deleting?.symbol} (${deleting?.name})? This cannot be undone.`}
+      />
     </div>
   )
 }

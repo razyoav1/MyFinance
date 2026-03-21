@@ -4,7 +4,7 @@ export const DEFAULT_CATEGORIES: Omit<Category, 'id'>[] = [
   // Expenses
   { name: 'Housing', icon: '🏠', color: '#6366f1', type: 'expense', isSystem: true },
   { name: 'Food & Dining', icon: '🍔', color: '#f59e0b', type: 'expense', isSystem: true },
-  { name: 'Transport', icon: '🚗', color: '#3b82f6', type: 'expense', isSystem: true },
+  { name: 'Transport', icon: '🚌', color: '#3b82f6', type: 'expense', isSystem: true },
   { name: 'Health', icon: '💊', color: '#ef4444', type: 'expense', isSystem: true },
   { name: 'Shopping', icon: '🛍️', color: '#ec4899', type: 'expense', isSystem: true },
   { name: 'Entertainment', icon: '🎬', color: '#8b5cf6', type: 'expense', isSystem: true },

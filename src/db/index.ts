@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type {
   Category, Transaction, InvestmentHolding, InvestmentPriceHistory,
-  Mortgage, MortgagePayment, SavingsGoal, GoalContribution, NetWorthSnapshot
+  Mortgage, MortgagePayment, SavingsGoal, GoalContribution, NetWorthSnapshot, BankAccount
 } from '@/types'
 import { DEFAULT_CATEGORIES } from '@/lib/categories'
 
@@ -15,6 +15,7 @@ class MyFinanceDB extends Dexie {
   savingsGoals!: EntityTable<SavingsGoal, 'id'>
   goalContributions!: EntityTable<GoalContribution, 'id'>
   netWorthSnapshots!: EntityTable<NetWorthSnapshot, 'id'>
+  bankAccounts!: EntityTable<BankAccount, 'id'>
 
   constructor() {
     super('MyFinanceDB')
@@ -38,6 +39,19 @@ class MyFinanceDB extends Dexie {
           name: 'Loan', icon: '🏦', color: '#0f766e', type: 'expense', isSystem: true,
         })
       }
+    })
+
+    // v4: update Transport icon from 🚗 to 🚌
+    this.version(4).stores({}).upgrade(async tx => {
+      const transport = await tx.table('categories').where('name').equals('Transport').first()
+      if (transport && transport.icon === '🚗') {
+        await tx.table('categories').update(transport.id, { icon: '🚌' })
+      }
+    })
+
+    // v5: add bankAccounts table
+    this.version(5).stores({
+      bankAccounts: '++id, type, currency',
     })
 
     // v3: add Rent and Mortgage categories if missing

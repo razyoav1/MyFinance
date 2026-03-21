@@ -14,6 +14,7 @@ interface Props {
   open: boolean
   onClose: () => void
   editing?: Transaction
+  onSaved?: () => void
 }
 
 const defaultForm = {
@@ -29,7 +30,7 @@ const defaultForm = {
   recurringInterval: 'monthly' as Transaction['recurringInterval'],
 }
 
-export function TransactionForm({ open, onClose, editing }: Props) {
+export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
   const [form, setForm] = useState(defaultForm)
   const [saving, setSaving] = useState(false)
 
@@ -78,6 +79,7 @@ export function TransactionForm({ open, onClose, editing }: Props) {
       await addTransaction(data)
     }
     setSaving(false)
+    onSaved?.()
     onClose()
   }
 
