@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/db'
+import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { addTransaction, updateTransaction } from '@/hooks/useTransactions'
-import { Transaction, CURRENCIES } from '@/types'
+import { Transaction, Category, CURRENCIES } from '@/types'
+import { DEFAULT_CATEGORIES } from '@/lib/categories'
 import { format } from 'date-fns'
 
 interface Props {
@@ -33,8 +33,44 @@ const defaultForm = {
 export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
   const [form, setForm] = useState(defaultForm)
   const [saving, setSaving] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
 
-  const categories = useLiveQuery(() => db.categories.toArray()) ?? []
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setUserId(session?.user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    if (!userId) return
+    const loadCategories = async () => {
+      const { data } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', userId)
+
+      // Auto-seed if empty (first login or schema was run after first login)
+      if (!data || data.length === 0) {
+        await supabase.from('categories').insert(
+          DEFAULT_CATEGORIES.map(c => ({
+            name: c.name, icon: c.icon, color: c.color,
+            type: c.type, is_system: c.isSystem ?? false, user_id: userId,
+          }))
+        )
+        const { data: seeded } = await supabase.from('categories').select('*').eq('user_id', userId)
+        setCategories((seeded ?? []).map((row: any) => ({
+          id: row.id, name: row.name, icon: row.icon,
+          color: row.color, type: row.type, isSystem: row.is_system ?? false,
+        })))
+      } else {
+        setCategories(data.map((row: any) => ({
+          id: row.id, name: row.name, icon: row.icon,
+          color: row.color, type: row.type, isSystem: row.is_system ?? false,
+        })))
+      }
+    }
+    loadCategories()
+  }, [userId])
+
   const filtered = categories.filter(c => c.type === form.type || c.type === 'both')
 
   useEffect(() => {
@@ -61,26 +97,31 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
   const handleSubmit = async () => {
     if (!form.amount || !form.description) return
     setSaving(true)
-    const data = {
-      type: form.type,
-      amount: parseFloat(form.amount),
-      currency: form.currency,
-      categoryId: form.categoryId ? parseInt(form.categoryId) : undefined,
-      date: form.date,
-      description: form.description,
-      notes: form.notes || undefined,
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-      isRecurring: form.isRecurring,
-      recurringInterval: form.isRecurring ? form.recurringInterval : undefined,
+    try {
+      const data = {
+        type: form.type,
+        amount: parseFloat(form.amount),
+        currency: form.currency,
+        categoryId: form.categoryId ? parseInt(form.categoryId) : undefined,
+        date: form.date,
+        description: form.description,
+        notes: form.notes || undefined,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        isRecurring: form.isRecurring,
+        recurringInterval: form.isRecurring ? form.recurringInterval : undefined,
+      }
+      if (editing?.id) {
+        await updateTransaction(editing.id, data)
+      } else {
+        await addTransaction(data)
+      }
+      onSaved?.()
+      onClose()
+    } catch (err) {
+      console.error('Failed to save transaction:', err)
+    } finally {
+      setSaving(false)
     }
-    if (editing?.id) {
-      await updateTransaction(editing.id, data)
-    } else {
-      await addTransaction(data)
-    }
-    setSaving(false)
-    onSaved?.()
-    onClose()
   }
 
   return (

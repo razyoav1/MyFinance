@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Trash2, Pencil, TrendingUp, TrendingDown } from 'lucide-react'
 import { useTransactions, deleteTransaction, useMonthlyStats, TransactionFilters } from '@/hooks/useTransactions'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/db'
+import { supabase } from '@/lib/supabase'
+import { useRefresh } from '@/contexts/RefreshContext'
 import { TransactionForm } from './TransactionForm'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
@@ -10,8 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import { LoadingSpinner } from '@/components/ui/Loading'
-import { Transaction } from '@/types'
+import { Transaction, Category } from '@/types'
 import { formatCurrency } from '@/lib/currency'
 import { useCurrencyStore } from '@/store/useCurrencyStore'
 import { toast } from '@/store/useToastStore'
@@ -21,6 +20,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 export function Transactions() {
   const now = new Date()
   const { baseCurrency } = useCurrencyStore()
+  const { refresh } = useRefresh()
   const [filters, setFilters] = useState<TransactionFilters>({
     month: now.getMonth() + 1,
     year: now.getFullYear(),
@@ -31,13 +31,32 @@ export function Transactions() {
   const [editing, setEditing] = useState<Transaction | undefined>()
   const [deleting, setDeleting] = useState<Transaction | undefined>()
 
+  const [categories, setCategories] = useState<Category[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setUserId(session?.user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    if (!userId) return
+    supabase
+      .from('categories')
+      .select('*')
+      .eq('user_id', userId)
+      .then(({ data }) => setCategories((data ?? []).map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        icon: row.icon,
+        color: row.color,
+        type: row.type,
+        isSystem: row.is_system ?? false,
+      }))))
+  }, [userId])
+
   const transactions = useTransactions({ ...filters, search })
   const stats = useMonthlyStats(filters.year, filters.month)
-  const categoriesRaw = useLiveQuery(() => db.categories.toArray())
-  const categories = categoriesRaw ?? []
   const catMap = Object.fromEntries(categories.map(c => [c.id!, c]))
-
-  if (categoriesRaw === undefined) return <LoadingSpinner />
 
   const set = (k: keyof TransactionFilters, v: unknown) =>
     setFilters(f => ({ ...f, [k]: v }))
@@ -48,6 +67,7 @@ export function Transactions() {
   const handleDelete = async () => {
     if (!deleting?.id) return
     await deleteTransaction(deleting.id)
+    refresh()
     toast.success('Transaction deleted')
   }
 
@@ -213,7 +233,7 @@ export function Transactions() {
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditing(undefined) }}
         editing={editing}
-        onSaved={() => toast.success(editing ? 'Transaction updated' : 'Transaction added')}
+        onSaved={() => { refresh(); toast.success(editing ? 'Transaction updated' : 'Transaction added') }}
       />
 
       <ConfirmModal

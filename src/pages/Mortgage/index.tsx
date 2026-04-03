@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMortgageSummary, useMortgagePayments, addMortgage, updateMortgage, logMortgagePayment } from '@/hooks/useMortgage'
+import { useRefresh } from '@/contexts/RefreshContext'
 import { calcMonthlyPayment, buildAmortizationSchedule } from '@/lib/mortgageCalc'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -9,12 +10,14 @@ import { Modal } from '@/components/ui/Modal'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatCurrency } from '@/lib/currency'
-import { CURRENCIES } from '@/types'
+import { CURRENCIES, AmortizationRow } from '@/types'
+import { toast } from '@/store/useToastStore'
 import { format } from 'date-fns'
 
 const TABS = ['Summary', 'Schedule', 'Payments'] as const
 
 export function Mortgage() {
+  const { refresh } = useRefresh()
   const summary = useMortgageSummary()
   const [tab, setTab] = useState<typeof TABS[number]>('Summary')
   const [setupOpen, setSetupOpen] = useState(false)
@@ -48,42 +51,54 @@ export function Mortgage() {
 
   const handleSetup = async () => {
     setSaving(true)
-    const termMonths = parseInt(setupForm.termYears) * 12
-    const monthlyPayment = parseFloat(autoCalcPayment() || '0')
-    const data = {
-      propertyName: setupForm.propertyName,
-      originalAmount: parseFloat(setupForm.originalAmount),
-      currency: setupForm.currency,
-      interestRate: parseFloat(setupForm.interestRate),
-      termMonths,
-      startDate: setupForm.startDate,
-      monthlyPayment,
-      extraMonthlyPayment: parseFloat(setupForm.extraMonthlyPayment) || 0,
-      rateType: setupForm.rateType as 'fixed' | 'variable',
-      isActive: true,
+    try {
+      const termMonths = parseInt(setupForm.termYears) * 12
+      const monthlyPayment = parseFloat(autoCalcPayment() || '0')
+      const data = {
+        propertyName: setupForm.propertyName,
+        originalAmount: parseFloat(setupForm.originalAmount),
+        currency: setupForm.currency,
+        interestRate: parseFloat(setupForm.interestRate),
+        termMonths,
+        startDate: setupForm.startDate,
+        monthlyPayment,
+        extraMonthlyPayment: parseFloat(setupForm.extraMonthlyPayment) || 0,
+        rateType: setupForm.rateType as 'fixed' | 'variable',
+        isActive: true,
+      }
+      if (summary?.mortgage.id) {
+        await updateMortgage(summary.mortgage.id, data)
+      } else {
+        await addMortgage(data)
+      }
+      refresh()
+      setSetupOpen(false)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to save mortgage')
+    } finally {
+      setSaving(false)
     }
-    if (summary?.mortgage.id) {
-      await updateMortgage(summary.mortgage.id, data)
-    } else {
-      await addMortgage(data)
-    }
-    setSaving(false)
-    setSetupOpen(false)
   }
 
   const handleLogPayment = async () => {
     if (!summary?.mortgage.id) return
     setSaving(true)
-    await logMortgagePayment({
-      mortgageId: summary.mortgage.id,
-      paymentDate: payForm.paymentDate,
-      totalPaid: parseFloat(payForm.totalPaid),
-      principalPaid: parseFloat(payForm.principalPaid),
-      interestPaid: parseFloat(payForm.interestPaid),
-      balanceAfter: parseFloat(payForm.balanceAfter),
-    })
-    setSaving(false)
-    setPaymentOpen(false)
+    try {
+      await logMortgagePayment({
+        mortgageId: summary.mortgage.id,
+        paymentDate: payForm.paymentDate,
+        totalPaid: parseFloat(payForm.totalPaid),
+        principalPaid: parseFloat(payForm.principalPaid),
+        interestPaid: parseFloat(payForm.interestPaid),
+        balanceAfter: parseFloat(payForm.balanceAfter),
+      })
+      refresh()
+      setPaymentOpen(false)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to log payment')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (!summary) {
@@ -190,7 +205,7 @@ export function Mortgage() {
                 </tr>
               </thead>
               <tbody>
-                {schedule.map((row) => (
+                {schedule.map((row: AmortizationRow) => (
                   <tr key={row.month} className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface2)] text-xs">
                     <td className="px-3 py-2 text-[var(--color-text-muted)]">{row.month}</td>
                     <td className="px-3 py-2 text-[var(--color-text-muted)]">{row.date}</td>

@@ -1,4 +1,4 @@
-import { db } from '@/db'
+import { supabase } from '@/lib/supabase'
 import { formatCurrency, getCurrencySymbol, convertCurrency } from './currency'
 import { calcSavingsRate } from './financeCalc'
 
@@ -22,16 +22,34 @@ export async function generateMonthlyReport(
   const fmt = (amount: number, currency = baseCurrency) => formatCurrency(amount, currency)
 
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  const [txns, categories, goals, activeMortgage, bankAccounts, holdings] = await Promise.all([
-    db.transactions.where('date').between(startDate, endDate, true, true).toArray(),
-    db.categories.toArray(),
-    db.savingsGoals.toArray(),
-    db.mortgages.filter(m => m.isActive).first(),
-    db.bankAccounts.toArray(),
-    db.investmentHoldings.toArray(),
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) return
+
+  const [txnRes, catRes, goalRes, mortgageRes, bankRes, holdingRes] = await Promise.all([
+    supabase.from('transactions').select('*').eq('user_id', userId).gte('date', startDate).lte('date', endDate),
+    supabase.from('categories').select('*').eq('user_id', userId),
+    supabase.from('savings_goals').select('*').eq('user_id', userId),
+    supabase.from('mortgages').select('*').eq('user_id', userId).eq('is_active', true).limit(1),
+    supabase.from('bank_accounts').select('*').eq('user_id', userId),
+    supabase.from('investment_holdings').select('*').eq('user_id', userId),
   ])
 
-  const catMap = Object.fromEntries(categories.map(c => [c.id!, c]))
+  const rawTxns = txnRes.data ?? []
+  const rawCats = catRes.data ?? []
+  const rawGoals = goalRes.data ?? []
+  const rawMortgage = (mortgageRes.data ?? [])[0] ?? null
+  const rawBankAccounts = bankRes.data ?? []
+  const rawHoldings = holdingRes.data ?? []
+
+  const txns = rawTxns.map((r: Record<string,any>) => ({ id: r.id, type: r.type, amount: Number(r.amount), currency: r.currency, categoryId: r.category_id, date: r.date, description: r.description ?? '', notes: r.notes }))
+  const categories = rawCats.map((r: Record<string,any>) => ({ id: r.id, name: r.name, icon: r.icon, color: r.color, type: r.type, isSystem: r.is_system }))
+  const goals = rawGoals.map((r: Record<string,any>) => ({ id: r.id, name: r.name, targetAmount: Number(r.target_amount), currentAmount: Number(r.current_amount ?? 0), currency: r.currency, icon: r.icon ?? '🎯', color: r.color ?? '#6366f1', isCompleted: r.is_completed }))
+  const activeMortgage = rawMortgage ? { id: rawMortgage.id, originalAmount: Number(rawMortgage.original_amount), currency: rawMortgage.currency ?? 'ILS' } : null
+  const bankAccounts = rawBankAccounts.map((r: Record<string,any>) => ({ id: r.id, balance: Number(r.balance), currency: r.currency }))
+  const holdings = rawHoldings.map((r: Record<string,any>) => ({ id: r.id, currentPrice: Number(r.current_price), quantity: Number(r.quantity), currentCurrency: r.currency ?? 'USD' }))
+
+  const catMap = Object.fromEntries(categories.map((c: Record<string,any>) => [c.id, c]))
   const income   = txns.filter(t => t.type === 'income' ).reduce((s, t) => s + toBase(t.amount, t.currency), 0)
   const expenses = txns.filter(t => t.type === 'expense').reduce((s, t) => s + toBase(t.amount, t.currency), 0)
   const net      = income - expenses

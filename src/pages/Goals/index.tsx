@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Plus, Trash2, Pencil, ChevronDown } from 'lucide-react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/db'
 import { useGoals, addGoal, updateGoal, deleteGoal, addContribution } from '@/hooks/useGoals'
+import { useRefresh } from '@/contexts/RefreshContext'
 import { SavingsGoal } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -98,10 +97,8 @@ export function Goals() {
   const [contribAmount, setContribAmount] = useState('')
   const [contribNote, setContribNote] = useState('')
 
-  const isLoading = useLiveQuery(() => db.savingsGoals.count()) === undefined
+  const { refresh } = useRefresh()
   const goals = useGoals()
-
-  if (isLoading) return <LoadingSpinner />
 
   const setF = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -117,36 +114,52 @@ export function Goals() {
 
   const handleSave = async () => {
     setSaving(true)
-    const data: Omit<SavingsGoal, 'id'> = {
-      name: form.name, targetAmount: parseFloat(form.targetAmount),
-      currentAmount: parseFloat(form.currentAmount) || 0,
-      currency: form.currency, targetDate: form.targetDate || undefined,
-      icon: form.icon, color: form.color, isCompleted: false,
+    try {
+      const data: Omit<SavingsGoal, 'id'> = {
+        name: form.name, targetAmount: parseFloat(form.targetAmount),
+        currentAmount: parseFloat(form.currentAmount) || 0,
+        currency: form.currency, targetDate: form.targetDate || undefined,
+        icon: form.icon, color: form.color, isCompleted: false,
+      }
+      if (editing?.id) await updateGoal(editing.id, data)
+      else await addGoal(data)
+      refresh()
+      toast.success(editing ? 'Goal updated' : 'Goal created')
+      setFormOpen(false)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to save goal')
+    } finally {
+      setSaving(false)
     }
-    if (editing?.id) await updateGoal(editing.id, data)
-    else await addGoal(data)
-    toast.success(editing ? 'Goal updated' : 'Goal created')
-    setSaving(false)
-    setFormOpen(false)
   }
 
   const openContrib = (g: SavingsGoal) => { setContribGoal(g); setContribAmount(''); setContribNote(''); setContribOpen(true) }
   const handleContrib = async () => {
     if (!contribGoal?.id || !contribAmount) return
-    await addContribution(contribGoal.id, parseFloat(contribAmount), format(new Date(), 'yyyy-MM-dd'), contribNote || undefined)
-    const newAmount = contribGoal.currentAmount + parseFloat(contribAmount)
-    if (newAmount >= contribGoal.targetAmount) {
-      toast.success(`🎉 Goal "${contribGoal.name}" completed!`)
-    } else {
-      toast.success('Contribution added')
+    try {
+      await addContribution(contribGoal.id, parseFloat(contribAmount), format(new Date(), 'yyyy-MM-dd'), contribNote || undefined)
+      refresh()
+      const newAmount = contribGoal.currentAmount + parseFloat(contribAmount)
+      if (newAmount >= contribGoal.targetAmount) {
+        toast.success(`🎉 Goal "${contribGoal.name}" completed!`)
+      } else {
+        toast.success('Contribution added')
+      }
+      setContribOpen(false)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to add contribution')
     }
-    setContribOpen(false)
   }
 
   const handleDelete = async () => {
     if (!deleting?.id) return
-    await deleteGoal(deleting.id)
-    toast.success('Goal deleted')
+    try {
+      await deleteGoal(deleting.id)
+      refresh()
+      toast.success('Goal deleted')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to delete goal')
+    }
   }
 
   const active = goals.filter(g => !g.isCompleted)

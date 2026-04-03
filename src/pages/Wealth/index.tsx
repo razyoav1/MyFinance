@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, ArrowRight } from 'luci
 import { useNavigate } from 'react-router-dom'
 import { useNetWorth } from '@/hooks/useNetWorth'
 import { addBankAccount, updateBankAccount, deleteBankAccount } from '@/hooks/useBankAccounts'
+import { useRefresh } from '@/contexts/RefreshContext'
 import { BankAccount, BankAccountType, CURRENCIES } from '@/types'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -32,6 +33,7 @@ const defaultForm = {
 
 export function Wealth() {
   const navigate = useNavigate()
+  const { refresh } = useRefresh()
   const nw = useNetWorth()
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -52,28 +54,39 @@ export function Wealth() {
   const handleSave = async () => {
     if (!form.name.trim() || form.balance === '') return
     setSaving(true)
-    const data: Omit<BankAccount, 'id'> = {
-      name: form.name, type: form.type,
-      balance: parseFloat(form.balance),
-      currency: form.currency, icon: form.icon,
-      notes: form.notes || undefined,
-      updatedAt: new Date().toISOString(),
+    try {
+      const data: Omit<BankAccount, 'id'> = {
+        name: form.name, type: form.type,
+        balance: parseFloat(form.balance),
+        currency: form.currency, icon: form.icon,
+        notes: form.notes || undefined,
+        updatedAt: new Date().toISOString(),
+      }
+      if (editing?.id) {
+        await updateBankAccount(editing.id, data)
+        toast.success('Account updated')
+      } else {
+        await addBankAccount(data)
+        toast.success('Account added')
+      }
+      refresh()
+      setModalOpen(false)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to save account')
+    } finally {
+      setSaving(false)
     }
-    if (editing?.id) {
-      await updateBankAccount(editing.id, data)
-      toast.success('Account updated')
-    } else {
-      await addBankAccount(data)
-      toast.success('Account added')
-    }
-    setSaving(false)
-    setModalOpen(false)
   }
 
   const handleDelete = async () => {
     if (!deleting?.id) return
-    await deleteBankAccount(deleting.id)
-    toast.success('Account deleted')
+    try {
+      await deleteBankAccount(deleting.id)
+      refresh()
+      toast.success('Account deleted')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to delete account')
+    }
   }
 
   // Goals allocation bar

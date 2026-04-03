@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react'
 import { useInvestments, usePortfolioTotal, usePortfolioHistory, addInvestment, updateInvestment, deleteInvestment, updatePrice } from '@/hooks/useInvestments'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/db'
+import { useRefresh } from '@/contexts/RefreshContext'
 import { InvestmentHolding, CURRENCIES } from '@/types'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -51,12 +50,11 @@ export function Investments() {
   const [totalValueMode, setTotalValueMode] = useState(false)
 
   const rates = useCurrencyStore(s => s.exchangeRates)
-  const isLoading = useLiveQuery(() => db.investmentHoldings.count()) === undefined
+  const { refresh } = useRefresh()
   const holdings = useInvestments()
   const portfolio = usePortfolioTotal()
   const history = usePortfolioHistory() as { date: string; value: number }[]
 
-  if (isLoading) return <LoadingSpinner />
 
   // Build pie data: each holding's current value converted to USD
   const pieData = holdings.map((h, i) => ({
@@ -85,40 +83,56 @@ export function Investments() {
 
   const handleSave = async () => {
     setSaving(true)
-    const qty = totalValueMode ? 1 : parseFloat(form.quantity)
-    const data: Omit<InvestmentHolding, 'id'> = {
-      symbol: form.symbol.toUpperCase(),
-      name: form.name,
-      assetType: form.assetType,
-      quantity: qty,
-      purchasePrice: parseFloat(form.purchasePrice),
-      purchaseCurrency: form.purchaseCurrency,
-      purchaseDate: form.purchaseDate,
-      currentPrice: parseFloat(form.currentPrice || form.purchasePrice),
-      currentCurrency: form.currentCurrency,
-      notes: form.notes || undefined,
-      updatedAt: new Date().toISOString(),
+    try {
+      const qty = totalValueMode ? 1 : parseFloat(form.quantity)
+      const data: Omit<InvestmentHolding, 'id'> = {
+        symbol: form.symbol.toUpperCase(),
+        name: form.name,
+        assetType: form.assetType,
+        quantity: qty,
+        purchasePrice: parseFloat(form.purchasePrice),
+        purchaseCurrency: form.purchaseCurrency,
+        purchaseDate: form.purchaseDate,
+        currentPrice: parseFloat(form.currentPrice || form.purchasePrice),
+        currentCurrency: form.currentCurrency,
+        notes: form.notes || undefined,
+        updatedAt: new Date().toISOString(),
+      }
+      if (editing?.id) await updateInvestment(editing.id, data)
+      else await addInvestment(data)
+      refresh()
+      toast.success(editing ? 'Holding updated' : 'Holding added')
+      setFormOpen(false)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to save holding')
+    } finally {
+      setSaving(false)
     }
-    if (editing?.id) await updateInvestment(editing.id, data)
-    else await addInvestment(data)
-    toast.success(editing ? 'Holding updated' : 'Holding added')
-    setSaving(false)
-    setFormOpen(false)
   }
 
   const handlePriceUpdate = async (id: number, currency: string) => {
     const price = parseFloat(priceInput)
     if (isNaN(price)) return
-    await updatePrice(id, price, currency)
-    toast.success('Price updated')
-    setEditingPrice(null)
-    setPriceInput('')
+    try {
+      await updatePrice(id, price, currency)
+      refresh()
+      toast.success('Price updated')
+      setEditingPrice(null)
+      setPriceInput('')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to update price')
+    }
   }
 
   const handleDelete = async () => {
     if (!deleting?.id) return
-    await deleteInvestment(deleting.id)
-    toast.success('Holding deleted')
+    try {
+      await deleteInvestment(deleting.id)
+      refresh()
+      toast.success('Holding deleted')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to delete holding')
+    }
   }
 
   const filtered = typeFilter === 'all' ? holdings : holdings.filter(h => h.assetType === typeFilter)

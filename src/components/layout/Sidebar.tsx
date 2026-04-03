@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, ArrowLeftRight, TrendingUp, Building2, Target, Settings, DollarSign, Landmark
+  LayoutDashboard, ArrowLeftRight, TrendingUp, Building2, Target, Settings, DollarSign, Landmark, LogOut
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { supabase } from '@/lib/supabase'
 
 const NAV_ITEMS = [
   { to: '/dashboard',    label: 'Dashboard',     icon: LayoutDashboard },
@@ -45,8 +46,8 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Settings */}
-      <div className="p-3 border-t border-[var(--color-border)]">
+      {/* Settings + Sign Out */}
+      <div className="p-3 border-t border-[var(--color-border)] flex flex-col gap-1">
         <NavLink
           to="/settings"
           className={({ isActive }) =>
@@ -61,6 +62,13 @@ export function Sidebar() {
           <Settings size={17} />
           Settings
         </NavLink>
+        <button
+          onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-[var(--color-text-muted)] hover:bg-red-500/10 hover:text-red-500"
+        >
+          <LogOut size={17} />
+          Sign Out
+        </button>
       </div>
     </aside>
   )

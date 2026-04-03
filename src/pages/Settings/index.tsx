@@ -1,7 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Moon, Sun, Plus, Pencil, Trash2 } from 'lucide-react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/db'
+import { supabase } from '@/lib/supabase'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useCurrencyStore } from '@/store/useCurrencyStore'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -13,6 +12,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Badge } from '@/components/ui/Badge'
 import { CURRENCIES, Category } from '@/types'
 import { toast } from '@/store/useToastStore'
+import { useRefresh } from '@/contexts/RefreshContext'
 
 const RATE_PAIRS = [
   { from: 'USD', to: 'ILS' },
@@ -48,12 +48,39 @@ const CATEGORY_COLORS = [
 
 const defaultCatForm = { name: '', icon: '🛒', color: '#6366f1', type: 'expense' as Category['type'] }
 
+function mapCategory(row: Record<string, any>): Category {
+  return {
+    id: row.id,
+    name: row.name,
+    icon: row.icon,
+    color: row.color,
+    type: row.type,
+    isSystem: row.is_system ?? false,
+  }
+}
+
 export function SettingsPage() {
   const { theme, setTheme } = useThemeStore()
   const { baseCurrency, setBaseCurrency, exchangeRates, setRate } = useCurrencyStore()
   const [rateInputs, setRateInputs] = useState<Record<string, string>>({})
+  const { refresh } = useRefresh()
 
-  const categories = useLiveQuery(() => db.categories.orderBy('name').toArray()) ?? []
+  const [categories, setCategories] = useState<Category[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setUserId(session?.user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    if (!userId) return
+    supabase
+      .from('categories')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true })
+      .then(({ data }) => setCategories((data ?? []).map(mapCategory)))
+  }, [userId, refresh])
 
   const [catFormOpen, setCatFormOpen] = useState(false)
   const [editingCat, setEditingCat] = useState<Category | undefined>()
@@ -73,34 +100,87 @@ export function SettingsPage() {
   const openEditCat = (c: Category) => { setEditingCat(c); setCatForm({ name: c.name, icon: c.icon, color: c.color, type: c.type }); setEmojiSearch(''); setEmojiGroup('All'); setCatFormOpen(true) }
 
   const handleSaveCat = async () => {
-    if (!catForm.name.trim()) return
+    if (!catForm.name.trim() || !userId) return
     if (editingCat?.id) {
-      await db.categories.update(editingCat.id, catForm)
+      await supabase.from('categories').update({
+        name: catForm.name,
+        icon: catForm.icon,
+        color: catForm.color,
+        type: catForm.type,
+      }).eq('id', editingCat.id)
       toast.success('Category updated')
     } else {
-      await db.categories.add({ ...catForm, isSystem: false })
+      await supabase.from('categories').insert({
+        user_id: userId,
+        name: catForm.name,
+        icon: catForm.icon,
+        color: catForm.color,
+        type: catForm.type,
+        is_system: false,
+      })
       toast.success('Category added')
     }
     setCatFormOpen(false)
+    // Refetch categories
+    const { data } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true })
+    setCategories((data ?? []).map(mapCategory))
+    refresh()
   }
 
   const handleDeleteCat = async () => {
     if (!deletingCat?.id) return
-    await db.categories.delete(deletingCat.id)
+    await supabase.from('categories').delete().eq('id', deletingCat.id)
     toast.success('Category deleted')
+    setDeletingCat(undefined)
+    if (userId) {
+      const { data } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', userId)
+        .order('name', { ascending: true })
+      setCategories((data ?? []).map(mapCategory))
+      refresh()
+    }
   }
 
   const handleExport = async () => {
-    const data = {
-      categories: await db.categories.toArray(),
-      transactions: await db.transactions.toArray(),
-      investments: await db.investmentHoldings.toArray(),
-      mortgages: await db.mortgages.toArray(),
-      goals: await db.savingsGoals.toArray(),
-      goalContributions: await db.goalContributions.toArray(),
-      mortgagePayments: await db.mortgagePayments.toArray(),
+    if (!userId) return
+    const [
+      { data: cats },
+      { data: txns },
+      { data: investments },
+      { data: mortgages },
+      { data: goals },
+      { data: contributions },
+      { data: mortgagePayments },
+      { data: bankAccounts },
+    ] = await Promise.all([
+      supabase.from('categories').select('*').eq('user_id', userId),
+      supabase.from('transactions').select('*').eq('user_id', userId),
+      supabase.from('investment_holdings').select('*').eq('user_id', userId),
+      supabase.from('mortgages').select('*').eq('user_id', userId),
+      supabase.from('savings_goals').select('*').eq('user_id', userId),
+      supabase.from('goal_contributions').select('*').eq('user_id', userId),
+      supabase.from('mortgage_payments').select('*').eq('user_id', userId),
+      supabase.from('bank_accounts').select('*').eq('user_id', userId),
+    ])
+
+    const exportData = {
+      categories: cats ?? [],
+      transactions: txns ?? [],
+      investments: investments ?? [],
+      mortgages: mortgages ?? [],
+      goals: goals ?? [],
+      goalContributions: contributions ?? [],
+      mortgagePayments: mortgagePayments ?? [],
+      bankAccounts: bankAccounts ?? [],
     }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -112,19 +192,47 @@ export function SettingsPage() {
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !userId) return
     const reader = new FileReader()
     reader.onload = async (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string)
-        if (data.transactions) await db.transactions.bulkPut(data.transactions)
-        if (data.categories) await db.categories.bulkPut(data.categories)
-        if (data.investments) await db.investmentHoldings.bulkPut(data.investments)
-        if (data.mortgages) await db.mortgages.bulkPut(data.mortgages)
-        if (data.goals) await db.savingsGoals.bulkPut(data.goals)
-        if (data.goalContributions) await db.goalContributions.bulkPut(data.goalContributions)
-        if (data.mortgagePayments) await db.mortgagePayments.bulkPut(data.mortgagePayments)
+
+        if (data.transactions?.length) {
+          const rows = data.transactions.map((t: any) => ({ ...t, id: undefined, user_id: userId }))
+          await supabase.from('transactions').upsert(rows, { onConflict: 'id' })
+        }
+        if (data.categories?.length) {
+          const rows = data.categories.map((c: any) => ({ ...c, id: undefined, user_id: userId }))
+          await supabase.from('categories').upsert(rows, { onConflict: 'id' })
+        }
+        if (data.investments?.length) {
+          const rows = data.investments.map((i: any) => ({ ...i, id: undefined, user_id: userId }))
+          await supabase.from('investment_holdings').upsert(rows, { onConflict: 'id' })
+        }
+        if (data.mortgages?.length) {
+          const rows = data.mortgages.map((m: any) => ({ ...m, id: undefined, user_id: userId }))
+          await supabase.from('mortgages').upsert(rows, { onConflict: 'id' })
+        }
+        if (data.goals?.length) {
+          const rows = data.goals.map((g: any) => ({ ...g, id: undefined, user_id: userId }))
+          await supabase.from('savings_goals').upsert(rows, { onConflict: 'id' })
+        }
+        if (data.goalContributions?.length) {
+          const rows = data.goalContributions.map((c: any) => ({ ...c, id: undefined, user_id: userId }))
+          await supabase.from('goal_contributions').upsert(rows, { onConflict: 'id' })
+        }
+        if (data.mortgagePayments?.length) {
+          const rows = data.mortgagePayments.map((p: any) => ({ ...p, id: undefined, user_id: userId }))
+          await supabase.from('mortgage_payments').upsert(rows, { onConflict: 'id' })
+        }
+        if (data.bankAccounts?.length) {
+          const rows = data.bankAccounts.map((a: any) => ({ ...a, id: undefined, user_id: userId }))
+          await supabase.from('bank_accounts').upsert(rows, { onConflict: 'id' })
+        }
+
         toast.success('Data imported successfully')
+        refresh()
       } catch {
         toast.error('Failed to import — invalid file format')
       }
@@ -237,7 +345,7 @@ export function SettingsPage() {
         <Card>
           <CardHeader><CardTitle>Data</CardTitle></CardHeader>
           <p className="text-xs text-[var(--color-text-muted)] mb-3">
-            Your data is stored locally in your browser's IndexedDB. It never leaves your device.
+            Your data is synced to the cloud via Supabase and accessible from any device.
           </p>
           <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={handleExport}>

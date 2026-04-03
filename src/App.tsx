@@ -10,8 +10,33 @@ import { Goals } from '@/pages/Goals'
 import { SettingsPage } from '@/pages/Settings'
 import { Wealth } from '@/pages/Wealth'
 import { ToastContainer } from '@/components/ui/Toast'
+import { RefreshProvider } from '@/contexts/RefreshContext'
+import { useAuth } from '@/hooks/useAuth'
+import Auth from '@/pages/Auth'
+import ResetPassword from '@/pages/ResetPassword'
 
-export default function App() {
+function AppContent() {
+  const { user, loading, isPasswordRecovery, setIsPasswordRecovery } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-[var(--color-text-muted)]">Loading...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (isPasswordRecovery) {
+    return <ResetPassword onDone={() => setIsPasswordRecovery(false)} />
+  }
+
+  if (!user) {
+    return <Auth />
+  }
+
   return (
     <HashRouter>
       <div className="flex h-screen bg-[var(--color-bg)] overflow-hidden">
@@ -35,5 +60,13 @@ export default function App() {
       </div>
       <ToastContainer />
     </HashRouter>
+  )
+}
+
+export default function App() {
+  return (
+    <RefreshProvider>
+      <AppContent />
+    </RefreshProvider>
   )
 }
