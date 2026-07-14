@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Pencil, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Trash2, Pencil, Upload } from 'lucide-react'
 import { useTransactions, deleteTransaction, useMonthlyStats, TransactionFilters } from '@/hooks/useTransactions'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db'
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { ImportModal } from '@/components/ImportModal'
 import { LoadingSpinner } from '@/components/ui/Loading'
 import { Transaction } from '@/types'
 import { formatCurrency } from '@/lib/currency'
@@ -28,6 +29,7 @@ export function Transactions() {
   })
   const [search, setSearch] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<Transaction | undefined>()
   const [deleting, setDeleting] = useState<Transaction | undefined>()
 
@@ -55,9 +57,14 @@ export function Transactions() {
     <div className="p-4 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-[var(--color-text)]">Transactions</h1>
-        <Button onClick={handleAdd} size="sm">
-          <Plus size={14} /> Add
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload size={14} /> Import
+          </Button>
+          <Button onClick={handleAdd} size="sm">
+            <Plus size={14} /> Add
+          </Button>
+        </div>
       </div>
 
       {/* Monthly stats strip */}
@@ -215,6 +222,8 @@ export function Transactions() {
         editing={editing}
         onSaved={() => toast.success(editing ? 'Transaction updated' : 'Transaction added')}
       />
+
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
 
       <ConfirmModal
         open={!!deleting}
