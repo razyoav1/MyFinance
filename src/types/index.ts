@@ -7,6 +7,8 @@ export interface Category {
   isSystem: boolean
 }
 
+export type TransactionSource = 'manual' | 'csv' | 'sync'
+
 export interface Transaction {
   id?: number
   type: 'income' | 'expense'
@@ -21,6 +23,9 @@ export interface Transaction {
   recurringInterval?: 'weekly' | 'biweekly' | 'monthly' | 'yearly'
   createdAt: string
   updatedAt: string
+  /** Stable id from an external provider (bank sync) — used to skip duplicates on re-sync */
+  externalId?: string
+  source?: TransactionSource
 }
 
 export interface TransactionWithCategory extends Transaction {

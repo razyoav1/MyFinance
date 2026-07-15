@@ -1,0 +1,16 @@
+{
+  "name": "myfinance-bank-sync",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Local bank-sync runner for MyFinance (Option 2b). Scrapes your Israeli bank/credit-card accounts with israeli-bank-scrapers and writes a CSV the app imports in one click.",
+  "scripts": {
+    "sync": "node sync.mjs"
+  },
+  "dependencies": {
+    "israeli-bank-scrapers": "^6.8.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

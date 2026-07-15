@@ -64,7 +64,7 @@ The DB is versioned — **always bump the version** when changing the schema or 
 | Table | Key fields |
 |-------|-----------|
 | `categories` | `++id, type, name` |
-| `transactions` | `++id, date, type, categoryId, currency` |
+| `transactions` | `++id, date, type, categoryId, currency, externalId` |
 | `investmentHoldings` | `++id, symbol, assetType` |
 | `investmentPriceHistory` | `++id, holdingId, date` |
 | `mortgages` | `++id, isActive` |
@@ -72,12 +72,24 @@ The DB is versioned — **always bump the version** when changing the schema or 
 | `savingsGoals` | `++id, isCompleted` |
 | `goalContributions` | `++id, goalId, date` |
 | `netWorthSnapshots` | `++id, snapshotDate` |
+| `bankAccounts` | `++id, type, currency` |
 
-**Current DB version: 4**
+**Current DB version: 6**
 - v1 — initial schema
 - v2 — seeded Loan category
 - v3 — seeded Rent and Mortgage categories
 - v4 — updated Transport icon from 🚗 to 🚌
+- v5 — added `bankAccounts` table (Wealth page)
+- v6 — indexed `transactions.externalId` for bank-sync dedupe
+
+## Transaction Ingestion & Bank Sync
+- All bulk inserts go through `importTransactions()` in `src/lib/importTransactions.ts` — it dedupes on `externalId` (set only by bank sync; CSV rows have none).
+- CSV/Excel import: `src/lib/bankImport.ts` auto-detects the header row in Israeli bank exports (they start with intro rows) and Hebrew column names; `src/components/ImportModal.tsx` skips the mapping step when detection succeeds.
+- **Option 2 groundwork (not yet active):**
+  - `api/sync/*` — Vercel serverless scaffold for the Salt Edge aggregator (env-gated, returns 503 until `SALTEDGE_APP_ID`/`SALTEDGE_SECRET`/`SYNC_ACCESS_TOKEN` are set in Vercel).
+  - `src/lib/bankSync.ts` + `src/components/BankSyncPanel.tsx` — frontend client and Settings panel (unavailable/unconfigured/ready states).
+  - `scripts/bank-sync/` — standalone local runner using `israeli-bank-scrapers` (own package.json; credentials live in git-ignored `config.json`; outputs CSVs for the import modal).
+  - Setup walkthrough and provider decision notes: `docs/BANK_SYNC_SETUP.md`.
 
 ## Key Conventions
 

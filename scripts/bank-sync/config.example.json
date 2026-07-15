@@ -1,0 +1,22 @@
+{
+  "monthsBack": 3,
+  "accounts": [
+    {
+      "companyId": "hapoalim",
+      "credentials": { "userCode": "FILL-ME", "password": "FILL-ME" }
+    },
+    {
+      "companyId": "isracard",
+      "credentials": { "id": "FILL-ME", "card6Digits": "FILL-ME", "password": "FILL-ME" }
+    },
+    {
+      "companyId": "max",
+      "credentials": { "username": "FILL-ME", "password": "FILL-ME" }
+    }
+  ],
+  "_help": {
+    "companyIds": "hapoalim | leumi | discount | mizrahi | mercantile | otsarHahayal | union | beinleumi | massad | yahav | isracard | amex | max | visaCal | oneZero (experimental)",
+    "credentialFieldsPerCompany": "see https://github.com/eshaham/israeli-bank-scrapers#specific-definitions-per-scraper",
+    "security": "This file stays on YOUR computer only - it is listed in .gitignore and must never be committed or shared."
+  }
+}

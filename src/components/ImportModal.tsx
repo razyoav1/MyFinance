@@ -3,7 +3,7 @@ import { Upload, Check, AlertCircle, ChevronRight } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
-import { db } from '@/db'
+import { importTransactions } from '@/lib/importTransactions'
 import { useCurrencyStore } from '@/store/useCurrencyStore'
 import { toast } from '@/store/useToastStore'
 import { cn } from '@/lib/cn'
@@ -118,8 +118,7 @@ export function ImportModal({ open, onClose }: Props) {
     if (valid.length === 0) return
     setImporting(true)
     try {
-      const now = new Date().toISOString()
-      await db.transactions.bulkAdd(
+      const { added } = await importTransactions(
         valid.map(r => ({
           type: r.type,
           amount: r.amount,
@@ -127,13 +126,10 @@ export function ImportModal({ open, onClose }: Props) {
           date: r.date,
           description: r.description,
           notes: r.notes,
-          tags: [],
-          isRecurring: false as const,
-          createdAt: now,
-          updatedAt: now,
-        }))
+        })),
+        'csv',
       )
-      toast.success(`Imported ${valid.length} transaction${valid.length !== 1 ? 's' : ''}`)
+      toast.success(`Imported ${added} transaction${added !== 1 ? 's' : ''}`)
       handleClose()
     } catch (e) {
       toast.error('Import failed: ' + (e as Error).message)

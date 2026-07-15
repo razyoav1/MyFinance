@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Badge } from '@/components/ui/Badge'
+import { BankSyncPanel } from '@/components/BankSyncPanel'
 import { CURRENCIES, Category } from '@/types'
 import { toast } from '@/store/useToastStore'
 
@@ -232,6 +233,9 @@ export function SettingsPage() {
             ))}
           </div>
         </Card>
+
+        {/* Bank Sync (Option 2 groundwork) */}
+        <BankSyncPanel />
 
         {/* Data */}
         <Card>

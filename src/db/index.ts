@@ -54,6 +54,11 @@ class MyFinanceDB extends Dexie {
       bankAccounts: '++id, type, currency',
     })
 
+    // v6: index transactions.externalId for bank-sync duplicate detection
+    this.version(6).stores({
+      transactions: '++id, date, type, categoryId, currency, externalId',
+    })
+
     // v3: add Rent and Mortgage categories if missing
     this.version(3).stores({}).upgrade(async tx => {
       const toAdd = [
