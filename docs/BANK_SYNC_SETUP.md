@@ -72,7 +72,7 @@ All endpoints return **503 until** these env vars are set in Vercel:
 Settings → Bank Sync panel sends it so only you can use your API), `APP_URL`.
 
 This becomes relevant only if Salt Edge adds Israeli coverage, or an Israeli aggregator opens
-self-serve access (the helper in `api/_lib/saltedge.ts` is small and easy to adapt).
+self-serve access (everything lives in one file, `api/sync/[action].ts`, and is easy to adapt).
 Frontend pieces are already live: `src/lib/bankSync.ts` + the **Bank Sync** panel in Settings.
 
 ---
