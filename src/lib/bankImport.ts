@@ -8,6 +8,8 @@ export interface ParsedFile {
   fileName: string
   headers: string[]
   rows: string[][]
+  /** Intro rows (account info, date range…) skipped above the real table */
+  skippedRows: number
 }
 
 export interface ColumnMapping {
@@ -34,12 +36,12 @@ export interface ImportRow {
 
 export async function parseFile(file: File): Promise<ParsedFile> {
   const ext = file.name.split('.').pop()?.toLowerCase()
-  let result: { headers: string[]; rows: string[][] }
+  let result: Omit<ParsedFile, 'fileName'>
 
   if (ext === 'csv' || ext === 'tsv') {
-    result = await parseCsv(file)
+    result = csvToGrid(await readAsText(file))
   } else if (ext === 'xlsx' || ext === 'xls') {
-    result = await parseExcel(file)
+    result = excelToGrid(await readAsBuffer(file))
   } else {
     throw new Error(`Unsupported file type: .${ext}. Use .csv, .xls, or .xlsx.`)
   }
@@ -47,16 +49,13 @@ export async function parseFile(file: File): Promise<ParsedFile> {
   return { fileName: file.name, ...result }
 }
 
-async function parseCsv(file: File): Promise<{ headers: string[]; rows: string[][] }> {
-  const text = await readAsText(file)
+export function csvToGrid(text: string): Omit<ParsedFile, 'fileName'> {
   const result = Papa.parse<string[]>(text, { skipEmptyLines: true })
   if (result.data.length === 0) throw new Error('The file appears to be empty.')
-  const [headers, ...rows] = result.data as string[][]
-  return { headers, rows }
+  return finalizeGrid((result.data as string[][]).map(row => row.map(c => String(c ?? '').trim())))
 }
 
-async function parseExcel(file: File): Promise<{ headers: string[]; rows: string[][] }> {
-  const buffer = await readAsBuffer(file)
+export function excelToGrid(buffer: ArrayBuffer | Uint8Array): Omit<ParsedFile, 'fileName'> {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
   const ws = wb.Sheets[wb.SheetNames[0]]
   if (!ws) throw new Error('Excel file has no sheets.')
@@ -72,8 +71,16 @@ async function parseExcel(file: File): Promise<{ headers: string[]; rows: string
     return String(v ?? '').trim()
   }
 
-  const [headers, ...rows] = (raw as (string | number | Date | null)[][]).map(row => row.map(stringify))
-  return { headers, rows }
+  return finalizeGrid((raw as (string | number | Date | null)[][]).map(row => row.map(stringify)))
+}
+
+function finalizeGrid(grid: string[][]): Omit<ParsedFile, 'fileName'> {
+  const headerIdx = findHeaderRow(grid)
+  return {
+    headers: grid[headerIdx] ?? [],
+    rows: grid.slice(headerIdx + 1),
+    skippedRows: headerIdx,
+  }
 }
 
 function readAsText(file: File): Promise<string> {
@@ -94,35 +101,89 @@ function readAsBuffer(file: File): Promise<ArrayBuffer> {
   })
 }
 
-// ─── Auto-detect Column Mapping ───────────────────────────────────────────────
+// ─── Header Row Detection ─────────────────────────────────────────────────────
+// Israeli bank exports (Hapoalim, Leumi, Discount, Mizrahi, credit cards) start
+// with intro rows — account number, "מתאריך: … עד תאריך: …" — before the real
+// table. The header row is the one with the most column-name keywords.
 
 const nh = (s: string) => s.trim().toLowerCase()
 
+const HEADER_KEYWORDS = [
+  // English
+  'date', 'description', 'amount', 'debit', 'credit', 'balance', 'reference',
+  'details', 'payee', 'memo', 'narration', 'currency', 'category',
+  // Hebrew — bank accounts
+  'תאריך', 'תיאור', 'פרטים', 'סכום', 'חובה', 'זכות', 'יתרה', 'אסמכתא',
+  'פעולה', 'ערך', 'הערות',
+  // Hebrew — credit cards
+  'בית עסק', 'בית העסק', 'חיוב', 'זיכוי', 'קטגוריה', 'ענף', 'מטבע',
+]
+
+function headerScore(row: string[]): number {
+  let score = 0
+  for (const cell of row) {
+    const c = nh(cell)
+    if (c && HEADER_KEYWORDS.some(k => c.includes(k))) score++
+  }
+  return score
+}
+
+export function findHeaderRow(grid: string[][]): number {
+  let best = 0
+  let bestScore = 0
+  const limit = Math.min(grid.length, 30)
+  for (let i = 0; i < limit; i++) {
+    const score = headerScore(grid[i])
+    // strictly greater: on ties keep the earliest qualifying row
+    if (score >= 2 && score > bestScore) { best = i; bestScore = score }
+  }
+  return bestScore >= 2 ? best : 0
+}
+
+// ─── Auto-detect Column Mapping ───────────────────────────────────────────────
+
 export function autoDetectMapping(headers: string[]): Partial<ColumnMapping> {
   const h = headers.map(nh)
+  const isDateCol = (x: string) => x.includes('date') || x.includes('תאריך')
+  const isBalanceCol = (x: string) => x.includes('balance') || x.includes('יתרה')
   const find = (...terms: string[]) => h.findIndex(x => terms.some(t => x.includes(t)))
+  // Non-date fields must never land on a date column ("תאריך חיוב" contains "חיוב")
+  const findNonDate = (...terms: string[]) =>
+    h.findIndex(x => !isDateCol(x) && terms.some(t => x.includes(t)))
 
   const mapping: Partial<ColumnMapping> = {}
 
-  const dateIdx = find('date', 'תאריך', 'datum', 'fecha')
+  const dateIdx = find('תאריך', 'date', 'datum', 'fecha')
   if (dateIdx >= 0) mapping.date = dateIdx
 
-  const descIdx = find('description', 'פרטים', 'תיאור', 'details', 'payee', 'memo', 'reference', 'narration', 'תנועה')
+  const descIdx = findNonDate(
+    'description', 'פרטים', 'תיאור', 'details', 'payee', 'memo', 'narration',
+    'תנועה', 'בית עסק', 'בית העסק', 'שם בית',
+  )
   if (descIdx >= 0) mapping.description = descIdx
 
-  const creditIdx = find('credit', 'זכות', 'income', 'deposit', 'credits', 'received')
-  const debitIdx = find('debit', 'חובה', 'expense', 'withdrawal', 'charge', 'debits', 'paid')
+  let creditIdx = findNonDate('credit', 'זכות', 'income', 'deposit', 'received', 'זיכוי')
+  let debitIdx = findNonDate('debit', 'חובה', 'expense', 'withdrawal', 'charge', 'paid', 'חיוב')
+
+  // A single "debit/credit" column matched both → it's really a signed amount
+  if (creditIdx >= 0 && creditIdx === debitIdx) {
+    mapping.amount = creditIdx
+    creditIdx = -1
+    debitIdx = -1
+  }
 
   if (creditIdx >= 0) mapping.credit = creditIdx
   if (debitIdx >= 0) mapping.debit = debitIdx
 
-  // Single amount column only if no credit/debit found
-  if (mapping.credit === undefined && mapping.debit === undefined) {
-    const amtIdx = find('amount', 'סכום', 'sum', 'total', 'value', 'price')
+  // Single amount column only if no credit/debit found (never the balance column)
+  if (mapping.amount === undefined && mapping.credit === undefined && mapping.debit === undefined) {
+    const amtIdx = h.findIndex(x =>
+      !isDateCol(x) && !isBalanceCol(x) &&
+      ['amount', 'סכום', 'sum', 'total', 'value', 'price'].some(t => x.includes(t)))
     if (amtIdx >= 0) mapping.amount = amtIdx
   }
 
-  const notesIdx = find('notes', 'note', 'הערות', 'remark', 'comment')
+  const notesIdx = findNonDate('notes', 'הערות', 'remark', 'comment', 'אסמכתא', 'reference')
   if (notesIdx >= 0 && notesIdx !== descIdx) mapping.notes = notesIdx
 
   return mapping
@@ -132,7 +193,8 @@ export function detectBankName(headers: string[]): string | null {
   const h = headers.map(nh)
   const has = (...t: string[]) => t.some(x => h.some(hx => hx.includes(x)))
 
-  if (has('תאריך') && has('פרטים', 'תיאור')) return 'Israeli Bank (Auto-detected)'
+  if (has('בית עסק', 'בית העסק')) return 'Israeli Credit Card'
+  if (has('תאריך') && has('פרטים', 'תיאור', 'פעולה')) return 'Israeli Bank'
   if (has('date') && has('amount') && has('description')) return 'Generic CSV'
   if (has('date') && (has('credit') || has('debit'))) return 'Bank Statement (Credit/Debit)'
   return null
@@ -144,6 +206,8 @@ const DATE_FORMATS = [
   'dd/MM/yyyy', 'MM/dd/yyyy', 'yyyy-MM-dd',
   'dd-MM-yyyy', 'MM-dd-yyyy', 'd/M/yyyy', 'M/d/yyyy',
   'dd.MM.yyyy', 'yyyy/MM/dd',
+  // 2-digit years (Hapoalim & credit cards) — must come after 4-digit formats
+  'dd/MM/yy', 'd/M/yy', 'dd.MM.yy', 'dd-MM-yy',
 ]
 
 export function parseDate(str: string): string | null {
@@ -164,7 +228,7 @@ export function parseDate(str: string): string | null {
 export function parseAmount(str: string): number | null {
   const s = str?.trim()
   if (!s) return null
-  const cleaned = s.replace(/[₪$€£,\s ]/g, '').replace(/\(([^)]+)\)/, '-$1')
+  const cleaned = s.replace(/[₪$€£,\s ]/g, '').replace(/\(([^)]+)\)/, '-$1')
   const n = parseFloat(cleaned)
   return isNaN(n) ? null : n
 }
@@ -196,6 +260,7 @@ export function mapRows(rows: string[][], mapping: ColumnMapping): ImportRow[] {
         if (credit !== null && credit > 0) { amount = credit; type = 'income' }
         else if (debit !== null && debit > 0) { amount = debit; type = 'expense' }
         else if (credit !== null && credit < 0) { amount = Math.abs(credit); type = 'expense' }
+        else if (debit !== null && debit < 0) { amount = Math.abs(debit); type = 'income' }
       } else if (mapping.amount !== null) {
         const raw = parseAmount(get(row, mapping.amount))
         if (raw !== null) { amount = Math.abs(raw); type = raw >= 0 ? 'income' : 'expense' }

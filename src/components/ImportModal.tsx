@@ -48,6 +48,7 @@ export function ImportModal({ open, onClose }: Props) {
   const [currency, setCurrency]   = useState(baseCurrency)
   const [rows, setRows]           = useState<ImportRow[]>([])
   const [importing, setImporting] = useState(false)
+  const [autoMapped, setAutoMapped] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -57,10 +58,26 @@ export function ImportModal({ open, onClose }: Props) {
     try {
       const result = await parseFile(file)
       const detected = autoDetectMapping(result.headers)
+      const fullMapping = { ...EMPTY_MAPPING, ...detected }
       setParsed(result)
       setBankName(detectBankName(result.headers))
-      setMapping({ ...EMPTY_MAPPING, ...detected })
-      setStep('map')
+      setMapping(fullMapping)
+
+      // If we recognized the columns, skip the mapping screen entirely
+      const complete =
+        fullMapping.date !== null &&
+        fullMapping.description !== null &&
+        (fullMapping.amount !== null || fullMapping.credit !== null || fullMapping.debit !== null)
+      const mapped = complete ? mapRows(result.rows, fullMapping) : []
+
+      if (complete && mapped.some(r => r.valid)) {
+        setRows(mapped)
+        setAutoMapped(true)
+        setStep('preview')
+      } else {
+        setAutoMapped(false)
+        setStep('map')
+      }
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -92,6 +109,7 @@ export function ImportModal({ open, onClose }: Props) {
   const goToPreview = () => {
     if (!parsed) return
     setRows(mapRows(parsed.rows, mapping))
+    setAutoMapped(false)
     setStep('preview')
   }
 
@@ -217,6 +235,12 @@ export function ImportModal({ open, onClose }: Props) {
             </div>
           )}
 
+          {parsed.skippedRows > 0 && (
+            <p className="text-xs text-[var(--color-text-muted)] mb-3">
+              ℹ️ Skipped {parsed.skippedRows} intro row{parsed.skippedRows !== 1 ? 's' : ''} above the transaction table.
+            </p>
+          )}
+
           {/* Raw data preview */}
           <p className="text-xs text-[var(--color-text-muted)] mb-1.5 font-medium">File preview (first 3 rows):</p>
           <div className="mb-4 overflow-x-auto rounded-lg border border-[var(--color-border)]">
@@ -288,6 +312,16 @@ export function ImportModal({ open, onClose }: Props) {
       {/* ── STEP 3: Preview & Confirm ── */}
       {step === 'preview' && (
         <div>
+          {autoMapped && (
+            <div className="flex items-center gap-2 mb-3 text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-3 py-2">
+              <Check size={14} className="shrink-0" />
+              <span>
+                {bankName ? <>Recognized <strong>{bankName}</strong> format — </> : ''}
+                columns were matched automatically. Check the list below, then import.
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center gap-4 mb-3 text-sm">
             <span className="font-semibold text-[var(--color-text)]">{rows.length} rows parsed</span>
             <span className="text-emerald-500">{validCount} ready to import</span>
