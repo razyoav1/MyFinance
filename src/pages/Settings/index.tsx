@@ -12,6 +12,8 @@ import { Modal } from '@/components/ui/Modal'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Badge } from '@/components/ui/Badge'
 import { BankSyncPanel } from '@/components/BankSyncPanel'
+import { CloudSyncPanel } from '@/components/CloudSyncPanel'
+import { buildBackup, mergeBackup } from '@/lib/backup'
 import { CURRENCIES, Category } from '@/types'
 import { toast } from '@/store/useToastStore'
 
@@ -92,15 +94,7 @@ export function SettingsPage() {
   }
 
   const handleExport = async () => {
-    const data = {
-      categories: await db.categories.toArray(),
-      transactions: await db.transactions.toArray(),
-      investments: await db.investmentHoldings.toArray(),
-      mortgages: await db.mortgages.toArray(),
-      goals: await db.savingsGoals.toArray(),
-      goalContributions: await db.goalContributions.toArray(),
-      mortgagePayments: await db.mortgagePayments.toArray(),
-    }
+    const data = await buildBackup()
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -118,13 +112,7 @@ export function SettingsPage() {
     reader.onload = async (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string)
-        if (data.transactions) await db.transactions.bulkPut(data.transactions)
-        if (data.categories) await db.categories.bulkPut(data.categories)
-        if (data.investments) await db.investmentHoldings.bulkPut(data.investments)
-        if (data.mortgages) await db.mortgages.bulkPut(data.mortgages)
-        if (data.goals) await db.savingsGoals.bulkPut(data.goals)
-        if (data.goalContributions) await db.goalContributions.bulkPut(data.goalContributions)
-        if (data.mortgagePayments) await db.mortgagePayments.bulkPut(data.mortgagePayments)
+        await mergeBackup(data)
         toast.success('Data imported successfully')
       } catch {
         toast.error('Failed to import — invalid file format')
@@ -233,6 +221,9 @@ export function SettingsPage() {
             ))}
           </div>
         </Card>
+
+        {/* Cloud Sync (cross-device) */}
+        <CloudSyncPanel />
 
         {/* Bank Sync (Option 2 groundwork) */}
         <BankSyncPanel />

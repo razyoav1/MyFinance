@@ -10,8 +10,10 @@ import { Goals } from '@/pages/Goals'
 import { SettingsPage } from '@/pages/Settings'
 import { Wealth } from '@/pages/Wealth'
 import { ToastContainer } from '@/components/ui/Toast'
+import { useCloudAutoSync } from '@/hooks/useCloudSync'
 
 export default function App() {
+  useCloudAutoSync()
   return (
     <HashRouter>
       <div className="flex h-screen bg-[var(--color-bg)] overflow-hidden">

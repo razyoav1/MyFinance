@@ -82,6 +82,12 @@ The DB is versioned — **always bump the version** when changing the schema or 
 - v5 — added `bankAccounts` table (Wealth page)
 - v6 — indexed `transactions.externalId` for bank-sync dedupe
 
+## Cloud Sync (cross-device)
+- Local-first stays the source of truth; Supabase is an **optional** synced copy. Snapshot-based: one `cloud_snapshots` row per user holds the full backup JSON (schema: `supabase_cloud_sync.sql`, RLS per user).
+- Login is username+password via Supabase auth with synthetic emails (`<user>@users.myfinance-app.com`); requires "Confirm email" disabled in Supabase.
+- Key files: `src/lib/supabase.ts` (null client when `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` unset), `src/lib/backup.ts` (shared backup format + fingerprint), `src/lib/cloudSync.ts` (auth + push/pull/assess), `src/hooks/useCloudSync.ts` (auto-sync every 60s), `src/components/CloudSyncPanel.tsx` (Settings UI).
+- Conflict policy: auto-push/auto-pull only when one side changed; both sides changed → panel makes the user choose. Setup: `docs/CLOUD_SYNC_SETUP.md`.
+
 ## Transaction Ingestion & Bank Sync
 - All bulk inserts go through `importTransactions()` in `src/lib/importTransactions.ts` — it dedupes on `externalId` (set only by bank sync; CSV rows have none).
 - CSV/Excel import: `src/lib/bankImport.ts` auto-detects the header row in Israeli bank exports (they start with intro rows) and Hebrew column names; `src/components/ImportModal.tsx` skips the mapping step when detection succeeds.
