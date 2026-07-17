@@ -181,6 +181,7 @@ export function Investments() {
                 <Tooltip
                   contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}
                   labelStyle={{ color: 'var(--color-text)' }}
+                  itemStyle={{ color: 'var(--color-text)' }}
                   formatter={(val: number, _name, props) => [
                     `${formatCurrency(val, 'USD')} (${pieTotal > 0 ? ((val / pieTotal) * 100).toFixed(1) : 0}%)`,
                     props.payload.fullName,

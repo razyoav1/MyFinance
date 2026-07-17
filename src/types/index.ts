@@ -7,7 +7,7 @@ export interface Category {
   isSystem: boolean
 }
 
-export type TransactionSource = 'manual' | 'csv' | 'sync'
+export type TransactionSource = 'manual' | 'csv' | 'sync' | 'recurring'
 
 export interface Transaction {
   id?: number

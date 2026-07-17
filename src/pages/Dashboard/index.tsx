@@ -134,6 +134,7 @@ export function Dashboard() {
                     formatter={(val: number) => formatCurrency(val, baseCurrency)}
                     contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}
                     labelStyle={{ color: 'var(--color-text)' }}
+                    itemStyle={{ color: 'var(--color-text)' }}
                   />
                 </PieChart>
               </ResponsiveContainer>

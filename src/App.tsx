@@ -9,11 +9,22 @@ import { Mortgage } from '@/pages/Mortgage'
 import { Goals } from '@/pages/Goals'
 import { SettingsPage } from '@/pages/Settings'
 import { Wealth } from '@/pages/Wealth'
+import { useEffect } from 'react'
 import { ToastContainer } from '@/components/ui/Toast'
 import { useCloudAutoSync } from '@/hooks/useCloudSync'
+import { processRecurringTransactions } from '@/lib/recurring'
+import { toast } from '@/store/useToastStore'
 
 export default function App() {
   useCloudAutoSync()
+
+  // Materialize due recurring transactions once per app load
+  useEffect(() => {
+    processRecurringTransactions()
+      .then(n => { if (n > 0) toast.success(`${n} recurring transaction${n !== 1 ? 's' : ''} added`) })
+      .catch(err => console.warn('[recurring]', (err as Error).message))
+  }, [])
+
   return (
     <HashRouter>
       <div className="flex h-screen bg-[var(--color-bg)] overflow-hidden">
