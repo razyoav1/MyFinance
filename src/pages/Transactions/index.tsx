@@ -135,6 +135,7 @@ export function Transactions() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase">Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase">Description</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase hidden md:table-cell">Category</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase hidden md:table-cell">Notes</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase">Amount</th>
                   <th className="px-4 py-3 w-20"></th>
                 </tr>
@@ -149,18 +150,14 @@ export function Transactions() {
                     >
                       <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{t.date}</td>
                       <td className="px-4 py-3 font-medium text-[var(--color-text)]">
-                        <div>
-                          <span>
-                            {t.description}
-                            {t.isRecurring && <span className="ml-2 text-xs text-[var(--color-text-muted)]">↻</span>}
-                          </span>
-                          {t.notes && (
-                            <p className="text-xs text-[var(--color-text-muted)] font-normal mt-0.5">{t.notes}</p>
-                          )}
-                        </div>
+                        {t.description}
+                        {t.isRecurring && <span className="ml-2 text-xs text-[var(--color-text-muted)]">↻</span>}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         {cat && <Badge color={cat.color}>{cat.icon} {cat.name}</Badge>}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell text-xs text-[var(--color-text-muted)] max-w-[220px] truncate" title={t.notes || undefined}>
+                        {t.notes}
                       </td>
                       <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${t.type === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>
                         {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount, t.currency)}
@@ -187,7 +184,7 @@ export function Transactions() {
                 return (
                   <tfoot>
                     <tr className="border-t-2 border-[var(--color-border)] bg-[var(--color-surface2)]">
-                      <td colSpan={3} className="px-4 py-2.5 text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                      <td colSpan={4} className="px-4 py-2.5 text-xs font-semibold text-[var(--color-text-muted)] uppercase">
                         {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
                         {totalIncome > 0 && totalExpenses > 0 && (
                           <span className="ml-3 font-normal normal-case">
