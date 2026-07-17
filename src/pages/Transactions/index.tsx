@@ -135,7 +135,6 @@ export function Transactions() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase">Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase">Description</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase hidden md:table-cell">Category</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase hidden md:table-cell">Tags</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase">Amount</th>
                   <th className="px-4 py-3 w-20"></th>
                 </tr>
@@ -163,11 +162,6 @@ export function Transactions() {
                       <td className="px-4 py-3 hidden md:table-cell">
                         {cat && <Badge color={cat.color}>{cat.icon} {cat.name}</Badge>}
                       </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          {t.tags.map(tag => <Badge key={tag} variant="neutral">{tag}</Badge>)}
-                        </div>
-                      </td>
                       <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${t.type === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>
                         {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount, t.currency)}
                       </td>
@@ -193,7 +187,7 @@ export function Transactions() {
                 return (
                   <tfoot>
                     <tr className="border-t-2 border-[var(--color-border)] bg-[var(--color-surface2)]">
-                      <td colSpan={4} className="px-4 py-2.5 text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                      <td colSpan={3} className="px-4 py-2.5 text-xs font-semibold text-[var(--color-text-muted)] uppercase">
                         {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
                         {totalIncome > 0 && totalExpenses > 0 && (
                           <span className="ml-3 font-normal normal-case">

@@ -64,6 +64,13 @@ export function SettingsPage() {
   const [deletingCat, setDeletingCat] = useState<Category | undefined>()
   const [emojiSearch, setEmojiSearch] = useState('')
   const [emojiGroup, setEmojiGroup] = useState('All')
+  const [confirmWipeTxns, setConfirmWipeTxns] = useState(false)
+
+  const handleWipeTransactions = async () => {
+    const count = await db.transactions.count()
+    await db.transactions.clear()
+    toast.success(`Deleted ${count} transaction${count !== 1 ? 's' : ''}`)
+  }
 
   const handleRateSave = (from: string, to: string) => {
     const key = `${from}_${to}`
@@ -245,8 +252,30 @@ export function SettingsPage() {
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
           </div>
+
+          {/* Danger zone */}
+          <div className="mt-4 pt-3 border-t border-[var(--color-border)]">
+            <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Danger zone</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-red-500/40 text-red-500 hover:bg-red-500/10"
+              onClick={() => setConfirmWipeTxns(true)}
+            >
+              <Trash2 size={13} /> Delete All Transactions
+            </Button>
+          </div>
         </Card>
       </div>
+
+      {/* Delete-all-transactions confirmation */}
+      <ConfirmModal
+        open={confirmWipeTxns}
+        onClose={() => setConfirmWipeTxns(false)}
+        onConfirm={handleWipeTransactions}
+        title="Delete ALL transactions?"
+        message="Every transaction on this device will be permanently deleted, and if you use Cloud Sync the deletion will spread to your other devices on the next sync. Categories, goals, investments and accounts are kept. Consider clicking 'Export Data (JSON)' first as a backup. This cannot be undone."
+      />
 
       {/* Category form modal */}
       <Modal open={catFormOpen} onClose={() => setCatFormOpen(false)} title={editingCat ? 'Edit Category' : 'Add Category'} size="md">
