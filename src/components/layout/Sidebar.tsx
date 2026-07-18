@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, ArrowLeftRight, TrendingUp, Building2, Target, Settings, DollarSign, Landmark
+  LayoutDashboard, ArrowLeftRight, TrendingUp, Building2, Target, Settings, DollarSign, Landmark, PieChart
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 const NAV_ITEMS = [
   { to: '/dashboard',    label: 'Dashboard',     icon: LayoutDashboard },
   { to: '/transactions', label: 'Transactions',  icon: ArrowLeftRight },
+  { to: '/analysis',     label: 'Analysis',      icon: PieChart },
   { to: '/wealth',       label: 'Wealth',        icon: Landmark },
   { to: '/investments',  label: 'Investments',   icon: TrendingUp },
   { to: '/mortgage',     label: 'Mortgage',      icon: Building2 },

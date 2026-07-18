@@ -74,13 +74,19 @@ The DB is versioned — **always bump the version** when changing the schema or 
 | `netWorthSnapshots` | `++id, snapshotDate` |
 | `bankAccounts` | `++id, type, currency` |
 
-**Current DB version: 6**
+**Current DB version: 7**
 - v1 — initial schema
 - v2 — seeded Loan category
 - v3 — seeded Rent and Mortgage categories
 - v4 — updated Transport icon from 🚗 to 🚌
 - v5 — added `bankAccounts` table (Wealth page)
 - v6 — indexed `transactions.externalId` for bank-sync dedupe
+- v7 — assigned expense-quality `tier` to categories (Analysis page)
+
+## Analysis Page
+- `/analysis` (`src/pages/Analysis/index.tsx`) — expense-quality tiers, month-over-month movers, 6-month tier trend, income sources, biggest expenses. Month navigator like the Dashboard.
+- Expense categories carry an optional `tier` (`wealth` | `essential` | `lifestyle`); definitions + name-based defaults + `tierOf()` live in `src/lib/tiers.ts`. Editable per-category in Settings.
+- All computation is in `src/hooks/useAnalysis.ts` (currency-converted via `convertCurrency`).
 
 ## Cloud Sync (cross-device)
 - Local-first stays the source of truth; Supabase is an **optional** synced copy. Snapshot-based: one `cloud_snapshots` row per user holds the full backup JSON (schema: `supabase_cloud_sync.sql`, RLS per user).

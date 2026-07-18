@@ -9,6 +9,7 @@ import { Mortgage } from '@/pages/Mortgage'
 import { Goals } from '@/pages/Goals'
 import { SettingsPage } from '@/pages/Settings'
 import { Wealth } from '@/pages/Wealth'
+import { Analysis } from '@/pages/Analysis'
 import { useEffect } from 'react'
 import { ToastContainer } from '@/components/ui/Toast'
 import { useCloudAutoSync } from '@/hooks/useCloudSync'
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard"    element={<Dashboard />} />
               <Route path="/transactions" element={<Transactions />} />
+              <Route path="/analysis"     element={<Analysis />} />
               <Route path="/wealth"        element={<Wealth />} />
               <Route path="/investments"  element={<Investments />} />
               <Route path="/mortgage"     element={<Mortgage />} />

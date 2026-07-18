@@ -1,3 +1,6 @@
+/** Quality tier for expense categories, used by the Analysis page. */
+export type ExpenseTier = 'wealth' | 'essential' | 'lifestyle'
+
 export interface Category {
   id?: number
   name: string
@@ -5,6 +8,8 @@ export interface Category {
   color: string
   type: 'income' | 'expense' | 'both'
   isSystem: boolean
+  /** Only meaningful for expense categories; falls back to a name-based default. */
+  tier?: ExpenseTier
 }
 
 export type TransactionSource = 'manual' | 'csv' | 'sync' | 'recurring'

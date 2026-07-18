@@ -4,6 +4,7 @@ import type {
   Mortgage, MortgagePayment, SavingsGoal, GoalContribution, NetWorthSnapshot, BankAccount
 } from '@/types'
 import { DEFAULT_CATEGORIES } from '@/lib/categories'
+import { DEFAULT_TIER_BY_NAME } from '@/lib/tiers'
 
 class MyFinanceDB extends Dexie {
   categories!: EntityTable<Category, 'id'>
@@ -57,6 +58,17 @@ class MyFinanceDB extends Dexie {
     // v6: index transactions.externalId for bank-sync duplicate detection
     this.version(6).stores({
       transactions: '++id, date, type, categoryId, currency, externalId',
+    })
+
+    // v7: assign expense-quality tiers to existing categories
+    this.version(7).stores({}).upgrade(async tx => {
+      const cats = await tx.table('categories').toArray()
+      for (const c of cats) {
+        if (c.type !== 'income' && !c.tier) {
+          const tier = DEFAULT_TIER_BY_NAME[c.name]
+          if (tier) await tx.table('categories').update(c.id, { tier })
+        }
+      }
     })
 
     // v3: add Rent and Mortgage categories if missing

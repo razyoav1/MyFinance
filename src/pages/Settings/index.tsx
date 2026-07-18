@@ -14,7 +14,8 @@ import { Badge } from '@/components/ui/Badge'
 import { BankSyncPanel } from '@/components/BankSyncPanel'
 import { CloudSyncPanel } from '@/components/CloudSyncPanel'
 import { buildBackup, mergeBackup } from '@/lib/backup'
-import { CURRENCIES, Category } from '@/types'
+import { CURRENCIES, Category, ExpenseTier } from '@/types'
+import { TIERS, tierOf } from '@/lib/tiers'
 import { toast } from '@/store/useToastStore'
 
 const RATE_PAIRS = [
@@ -49,7 +50,7 @@ const CATEGORY_COLORS = [
   '#64748b','#78716c','#1e293b',
 ]
 
-const defaultCatForm = { name: '', icon: '🛒', color: '#6366f1', type: 'expense' as Category['type'] }
+const defaultCatForm = { name: '', icon: '🛒', color: '#6366f1', type: 'expense' as Category['type'], tier: 'essential' as ExpenseTier }
 
 export function SettingsPage() {
   const { theme, setTheme } = useThemeStore()
@@ -80,7 +81,7 @@ export function SettingsPage() {
   }
 
   const openAddCat = () => { setEditingCat(undefined); setCatForm(defaultCatForm); setEmojiSearch(''); setEmojiGroup('All'); setCatFormOpen(true) }
-  const openEditCat = (c: Category) => { setEditingCat(c); setCatForm({ name: c.name, icon: c.icon, color: c.color, type: c.type }); setEmojiSearch(''); setEmojiGroup('All'); setCatFormOpen(true) }
+  const openEditCat = (c: Category) => { setEditingCat(c); setCatForm({ name: c.name, icon: c.icon, color: c.color, type: c.type, tier: tierOf(c) }); setEmojiSearch(''); setEmojiGroup('All'); setCatFormOpen(true) }
 
   const handleSaveCat = async () => {
     if (!catForm.name.trim()) return
@@ -329,6 +330,12 @@ export function SettingsPage() {
             <option value="income">Income</option>
             <option value="both">Both</option>
           </Select>
+
+          {catForm.type !== 'income' && (
+            <Select label="Expense quality (for Analysis)" value={catForm.tier} onChange={e => setCatForm(f => ({ ...f, tier: e.target.value as ExpenseTier }))}>
+              {TIERS.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+            </Select>
+          )}
 
           <div>
             <label className="text-xs font-medium text-[var(--color-text-muted)]">Color</label>
