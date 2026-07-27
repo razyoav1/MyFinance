@@ -44,10 +44,18 @@ const EMOJI_GROUPS: { label: string; icons: string[] }[] = [
 const ALL_ICONS = EMOJI_GROUPS.flatMap(g => g.icons)
 
 const CATEGORY_COLORS = [
-  '#6366f1','#8b5cf6','#a855f7','#ec4899','#f43f5e',
-  '#ef4444','#f97316','#f59e0b','#eab308','#84cc16',
-  '#10b981','#14b8a6','#06b6d4','#3b82f6','#0ea5e9',
-  '#64748b','#78716c','#1e293b',
+  // reds & pinks
+  '#ef4444','#f43f5e','#e11d48','#be123c','#ec4899','#db2777','#f472b6',
+  // oranges, ambers, yellows
+  '#f97316','#fb923c','#d97706','#f59e0b','#eab308','#ca8a04',
+  // greens & teals
+  '#84cc16','#22c55e','#16a34a','#10b981','#059669','#0f766e','#14b8a6',
+  // cyans & blues
+  '#06b6d4','#0ea5e9','#3b82f6','#2563eb','#6366f1','#4f46e5',
+  // purples
+  '#8b5cf6','#a855f7','#9333ea','#7c3aed','#c084fc','#d946ef',
+  // neutrals
+  '#94a3b8','#64748b','#475569','#78716c','#1e293b',
 ]
 
 const defaultCatForm = { name: '', icon: '🛒', color: '#6366f1', type: 'expense' as Category['type'], tier: 'essential' as ExpenseTier }

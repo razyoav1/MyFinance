@@ -16,18 +16,20 @@ export interface TierMeta {
  * essentials keep the lights on, and lifestyle is discretionary.
  */
 export const TIERS: TierMeta[] = [
-  { key: 'wealth',    label: 'Wealth-building', icon: '💪', color: '#10b981', desc: 'Mortgage, loan payments, investments — builds net worth' },
-  { key: 'essential', label: 'Essential',       icon: '🛡️', color: '#3b82f6', desc: 'Rent, utilities, insurance, health — necessary living costs' },
-  { key: 'lifestyle', label: 'Lifestyle',       icon: '🎉', color: '#f59e0b', desc: 'Dining, entertainment, shopping, travel — discretionary' },
+  { key: 'wealth',    label: 'Good',      icon: '💪', color: '#10b981', desc: 'Investments, mortgage, good loan payments — builds net worth' },
+  { key: 'essential', label: 'Essential', icon: '🛡️', color: '#3b82f6', desc: 'Rent, utilities, insurance, health, groceries — necessary living costs' },
+  { key: 'lifestyle', label: 'Lifestyle', icon: '🎉', color: '#f59e0b', desc: 'Going out, entertainment, shopping, travel — discretionary' },
 ]
 
 export const tierMeta = (key: ExpenseTier): TierMeta => TIERS.find(t => t.key === key)!
 
 /** Default tier per built-in category name (used until a category is reclassified). */
 export const DEFAULT_TIER_BY_NAME: Record<string, ExpenseTier> = {
+  // wealth ("Good")
+  Investment: 'wealth',
   Mortgage: 'wealth',
   Loan: 'wealth',
-  Investments: 'wealth',
+  // essential
   Rent: 'essential',
   Housing: 'essential',
   Utilities: 'essential',
@@ -35,12 +37,18 @@ export const DEFAULT_TIER_BY_NAME: Record<string, ExpenseTier> = {
   Health: 'essential',
   Transport: 'essential',
   Education: 'essential',
-  'Other Expense': 'essential',
-  'Food & Dining': 'lifestyle',
+  Groceries: 'essential',
+  Pet: 'essential',
+  'Self development': 'essential',
+  'Other Expenses': 'essential',
+  // lifestyle
+  'Going out': 'lifestyle',
   Shopping: 'lifestyle',
   Entertainment: 'lifestyle',
   Travel: 'lifestyle',
-  Subscriptions: 'lifestyle',
+  Subscription: 'lifestyle',
+  Donation: 'lifestyle',
+  Gifting: 'lifestyle',
 }
 
 /** Resolve a category's tier: explicit override → name default → 'essential'. */

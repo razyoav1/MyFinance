@@ -71,6 +71,49 @@ class MyFinanceDB extends Dexie {
       }
     })
 
+    // v8: reorganize default categories — rename old names to the new set and
+    // add the new categories. Renames keep the category id, so existing
+    // transactions stay attached.
+    this.version(8).stores({}).upgrade(async tx => {
+      const table = tx.table('categories')
+      const existing = await table.toArray()
+      const byName: Record<string, any> = {}
+      for (const c of existing) byName[c.name] = c
+
+      const defaultByName: Record<string, Omit<Category, 'id'>> = {}
+      for (const d of DEFAULT_CATEGORIES) defaultByName[d.name] = d
+
+      const renames: Record<string, string> = {
+        'Food & Dining': 'Groceries',
+        'Subscriptions': 'Subscription',
+        'Other Expense': 'Other Expenses',
+        'Investment Returns': 'Investment return',
+        'Gift': 'Present',
+      }
+      for (const [from, to] of Object.entries(renames)) {
+        const cat = byName[from]
+        if (cat && !byName[to]) {
+          const def = defaultByName[to]
+          await table.update(cat.id, {
+            name: to,
+            icon: def?.icon ?? cat.icon,
+            color: def?.color ?? cat.color,
+            ...(def && 'tier' in def ? { tier: def.tier } : {}),
+          })
+          byName[to] = { ...cat, name: to }
+          delete byName[from]
+        }
+      }
+
+      // Add any new default category that doesn't already exist by name
+      for (const d of DEFAULT_CATEGORIES) {
+        if (!byName[d.name]) {
+          await table.add(d)
+          byName[d.name] = d
+        }
+      }
+    })
+
     // v3: add Rent and Mortgage categories if missing
     this.version(3).stores({}).upgrade(async tx => {
       const toAdd = [

@@ -37,7 +37,7 @@ export function Transactions() {
   const transactions = useTransactions({ ...filters, search })
   const stats = useMonthlyStats(filters.year, filters.month)
   const categoriesRaw = useLiveQuery(() => db.categories.toArray())
-  const categories = categoriesRaw ?? []
+  const categories = (categoriesRaw ?? []).slice().sort((a, b) => a.name.localeCompare(b.name))
   const catMap = Object.fromEntries(categories.map(c => [c.id!, c]))
 
   if (categoriesRaw === undefined) return <LoadingSpinner />

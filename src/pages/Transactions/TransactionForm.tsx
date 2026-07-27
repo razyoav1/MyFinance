@@ -37,7 +37,9 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
   const [saving, setSaving] = useState(false)
 
   const categories = useLiveQuery(() => db.categories.toArray()) ?? []
-  const filtered = categories.filter(c => c.type === form.type || c.type === 'both')
+  const filtered = categories
+    .filter(c => c.type === form.type || c.type === 'both')
+    .sort((a, b) => a.name.localeCompare(b.name))
   const selectedCat = categories.find(c => String(c.id) === form.categoryId)
   const defaultTierMeta = tierMeta(tierOf(selectedCat))
 

@@ -74,7 +74,7 @@ The DB is versioned — **always bump the version** when changing the schema or 
 | `netWorthSnapshots` | `++id, snapshotDate` |
 | `bankAccounts` | `++id, type, currency` |
 
-**Current DB version: 7**
+**Current DB version: 8**
 - v1 — initial schema
 - v2 — seeded Loan category
 - v3 — seeded Rent and Mortgage categories
@@ -82,6 +82,7 @@ The DB is versioned — **always bump the version** when changing the schema or 
 - v5 — added `bankAccounts` table (Wealth page)
 - v6 — indexed `transactions.externalId` for bank-sync dedupe
 - v7 — assigned expense-quality `tier` to categories (Analysis page)
+- v8 — reorganized default categories (renamed old names, added new ones)
 
 ## Analysis Page
 - `/analysis` (`src/pages/Analysis/index.tsx`) — expense-quality tiers, month-over-month movers, 6-month tier trend, income sources, biggest expenses. Month navigator like the Dashboard.
