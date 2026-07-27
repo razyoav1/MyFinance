@@ -48,3 +48,8 @@ export function tierOf(cat?: Pick<Category, 'name' | 'tier'>): ExpenseTier {
   if (!cat) return 'essential'
   return cat.tier ?? DEFAULT_TIER_BY_NAME[cat.name] ?? 'essential'
 }
+
+/** Effective tier for a transaction: its own override, else its category's tier. */
+export function resolveTier(txnTier: ExpenseTier | undefined, cat?: Pick<Category, 'name' | 'tier'>): ExpenseTier {
+  return txnTier ?? tierOf(cat)
+}

@@ -31,6 +31,8 @@ export interface Transaction {
   /** Stable id from an external provider (bank sync) — used to skip duplicates on re-sync */
   externalId?: string
   source?: TransactionSource
+  /** Per-transaction quality override; when unset the category's tier applies. */
+  tier?: ExpenseTier
 }
 
 export interface TransactionWithCategory extends Transaction {

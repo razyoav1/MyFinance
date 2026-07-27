@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { format } from 'date-fns'
 import { db } from '@/db'
 import { convertCurrency } from '@/lib/currency'
-import { tierOf, tierMeta, TIERS, type ExpenseTier } from '@/lib/tiers'
+import { tierMeta, resolveTier, TIERS, type ExpenseTier } from '@/lib/tiers'
 import type { Category, Transaction } from '@/types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -74,7 +74,7 @@ export function useAnalysis(
 
     // ── Expense tiers ──────────────────────────────────────────────────────────
     const tierAcc = TIER_ACCUM()
-    for (const t of expenseTxns) tierAcc[tierOf(catMap[t.categoryId ?? -1])] += toBase(t.amount, t.currency)
+    for (const t of expenseTxns) tierAcc[resolveTier(t.tier, catMap[t.categoryId ?? -1])] += toBase(t.amount, t.currency)
     const expenseTiers: TierStat[] = TIERS.map(m => ({
       key: m.key, label: m.label, icon: m.icon, color: m.color,
       value: tierAcc[m.key],
@@ -141,7 +141,7 @@ export function useAnalysis(
       const [s, e] = monthRange(d.getFullYear(), d.getMonth() + 1)
       const mTxns = await db.transactions.where('date').between(s, e, true, true).toArray()
       const acc = TIER_ACCUM()
-      for (const t of mTxns) if (t.type === 'expense') acc[tierOf(catMap[t.categoryId ?? -1])] += toBase(t.amount, t.currency)
+      for (const t of mTxns) if (t.type === 'expense') acc[resolveTier(t.tier, catMap[t.categoryId ?? -1])] += toBase(t.amount, t.currency)
       trend.push({
         month: format(d, 'MMM'),
         Wealth: Math.round(acc.wealth),

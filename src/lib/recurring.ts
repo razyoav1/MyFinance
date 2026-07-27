@@ -77,6 +77,7 @@ async function generateDueOccurrences(): Promise<number> {
         tags: [],
         isRecurring: true,
         recurringInterval: interval,
+        tier: template.tier,
         createdAt: now,
         updatedAt: now,
         source: 'recurring',

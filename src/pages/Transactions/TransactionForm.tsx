@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { addTransaction, updateTransaction } from '@/hooks/useTransactions'
-import { Transaction, CURRENCIES } from '@/types'
+import { Transaction, CURRENCIES, ExpenseTier } from '@/types'
+import { TIERS, tierOf, tierMeta } from '@/lib/tiers'
 import { format } from 'date-fns'
 
 interface Props {
@@ -28,6 +29,7 @@ const defaultForm = {
   tags: '',
   isRecurring: false,
   recurringInterval: 'monthly' as Transaction['recurringInterval'],
+  tier: '' as '' | ExpenseTier,
 }
 
 export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
@@ -36,6 +38,8 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
 
   const categories = useLiveQuery(() => db.categories.toArray()) ?? []
   const filtered = categories.filter(c => c.type === form.type || c.type === 'both')
+  const selectedCat = categories.find(c => String(c.id) === form.categoryId)
+  const defaultTierMeta = tierMeta(tierOf(selectedCat))
 
   useEffect(() => {
     if (editing) {
@@ -50,6 +54,7 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
         tags: editing.tags.join(', '),
         isRecurring: editing.isRecurring,
         recurringInterval: editing.recurringInterval ?? 'monthly',
+        tier: editing.tier ?? '',
       })
     } else {
       setForm(defaultForm)
@@ -72,6 +77,7 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       isRecurring: form.isRecurring,
       recurringInterval: form.isRecurring ? form.recurringInterval : undefined,
+      tier: form.type === 'expense' && form.tier ? form.tier : undefined,
     }
     if (editing?.id) {
       await updateTransaction(editing.id, data)
@@ -156,6 +162,20 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
             className="w-36"
           />
         </div>
+
+        {/* Expense quality — overrides the category default on the Analysis page */}
+        {form.type === 'expense' && (
+          <Select
+            label="Quality (for Analysis)"
+            value={form.tier}
+            onChange={e => set('tier', e.target.value)}
+          >
+            <option value="">Follows category ({defaultTierMeta.icon} {defaultTierMeta.label})</option>
+            {TIERS.map(t => (
+              <option key={t.key} value={t.key}>{t.icon} {t.label}</option>
+            ))}
+          </Select>
+        )}
 
         <Input
           label="Tags (comma separated)"

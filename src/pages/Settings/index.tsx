@@ -15,7 +15,7 @@ import { BankSyncPanel } from '@/components/BankSyncPanel'
 import { CloudSyncPanel } from '@/components/CloudSyncPanel'
 import { buildBackup, mergeBackup } from '@/lib/backup'
 import { CURRENCIES, Category, ExpenseTier } from '@/types'
-import { TIERS, tierOf } from '@/lib/tiers'
+import { TIERS, tierOf, tierMeta } from '@/lib/tiers'
 import { toast } from '@/store/useToastStore'
 
 const RATE_PAIRS = [
@@ -220,6 +220,14 @@ export function SettingsPage() {
               <div key={c.id} className="flex items-center gap-2 py-1.5 px-1 rounded-lg hover:bg-[var(--color-surface2)] group">
                 <Badge color={c.color}>{c.icon} {c.name}</Badge>
                 <span className="text-xs text-[var(--color-text-muted)] capitalize">{c.type}</span>
+                {c.type !== 'income' && (() => {
+                  const m = tierMeta(tierOf(c))
+                  return (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: `${m.color}22`, color: m.color }}>
+                      {m.icon} {m.label}
+                    </span>
+                  )
+                })()}
                 {c.isSystem && <span className="text-xs text-[var(--color-text-muted)] ml-auto opacity-50">system</span>}
                 <div className={`flex gap-1 ${c.isSystem ? 'opacity-0 pointer-events-none' : 'ml-auto'} group-hover:opacity-100 transition-opacity`}>
                   <button onClick={() => openEditCat(c)} className="p-1 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)]"><Pencil size={12} /></button>
