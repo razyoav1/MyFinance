@@ -16,19 +16,24 @@ export interface TierMeta {
  * essentials keep the lights on, and lifestyle is discretionary.
  */
 export const TIERS: TierMeta[] = [
-  { key: 'wealth',    label: 'Good',      icon: '💪', color: '#10b981', desc: 'Investments, mortgage, good loan payments — builds net worth' },
-  { key: 'essential', label: 'Essential', icon: '🛡️', color: '#3b82f6', desc: 'Rent, utilities, insurance, health, groceries — necessary living costs' },
-  { key: 'lifestyle', label: 'Lifestyle', icon: '🎉', color: '#f59e0b', desc: 'Going out, entertainment, shopping, travel — discretionary' },
+  { key: 'wealth',    label: 'Wealth building', icon: '💰', color: '#10b981', desc: 'Investments & mortgage — grows your assets / net worth' },
+  { key: 'good',      label: 'Good',            icon: '💪', color: '#84cc16', desc: 'Education, self-development, good loans — beneficial, improves you' },
+  { key: 'essential', label: 'Essential',       icon: '🛡️', color: '#3b82f6', desc: 'Rent, utilities, insurance, health, groceries — necessary living costs' },
+  { key: 'lifestyle', label: 'Lifestyle',       icon: '🎉', color: '#f59e0b', desc: 'Going out, entertainment, shopping, travel — discretionary' },
 ]
 
 export const tierMeta = (key: ExpenseTier): TierMeta => TIERS.find(t => t.key === key)!
 
 /** Default tier per built-in category name (used until a category is reclassified). */
 export const DEFAULT_TIER_BY_NAME: Record<string, ExpenseTier> = {
-  // wealth ("Good")
+  // wealth building (grows assets)
   Investment: 'wealth',
   Mortgage: 'wealth',
-  Loan: 'wealth',
+  // good (beneficial, improves you)
+  Education: 'good',
+  'Self development': 'good',
+  Loan: 'good',
+  Donation: 'good',
   // essential
   Rent: 'essential',
   Housing: 'essential',
@@ -36,10 +41,8 @@ export const DEFAULT_TIER_BY_NAME: Record<string, ExpenseTier> = {
   Insurance: 'essential',
   Health: 'essential',
   Transport: 'essential',
-  Education: 'essential',
   Groceries: 'essential',
   Pet: 'essential',
-  'Self development': 'essential',
   'Other Expenses': 'essential',
   // lifestyle
   'Going out': 'lifestyle',
@@ -47,7 +50,6 @@ export const DEFAULT_TIER_BY_NAME: Record<string, ExpenseTier> = {
   Entertainment: 'lifestyle',
   Travel: 'lifestyle',
   Subscription: 'lifestyle',
-  Donation: 'lifestyle',
   Gifting: 'lifestyle',
 }
 

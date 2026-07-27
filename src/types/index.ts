@@ -1,5 +1,5 @@
 /** Quality tier for expense categories, used by the Analysis page. */
-export type ExpenseTier = 'wealth' | 'essential' | 'lifestyle'
+export type ExpenseTier = 'wealth' | 'good' | 'essential' | 'lifestyle'
 
 export interface Category {
   id?: number

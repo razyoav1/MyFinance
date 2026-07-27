@@ -22,9 +22,7 @@ export interface MoverStat {
 export interface TopExpense {
   id: number; description: string; icon: string; color: string; date: string; value: number
 }
-export interface TrendPoint {
-  month: string; Wealth: number; Essential: number; Lifestyle: number
-}
+export type TrendPoint = { month: string } & Record<ExpenseTier, number>
 
 export interface AnalysisData {
   income: number
@@ -42,7 +40,7 @@ export interface AnalysisData {
   trend: TrendPoint[]
 }
 
-const TIER_ACCUM = (): Record<ExpenseTier, number> => ({ wealth: 0, essential: 0, lifestyle: 0 })
+const TIER_ACCUM = (): Record<ExpenseTier, number> => ({ wealth: 0, good: 0, essential: 0, lifestyle: 0 })
 
 export function useAnalysis(
   year: number,
@@ -144,9 +142,10 @@ export function useAnalysis(
       for (const t of mTxns) if (t.type === 'expense') acc[resolveTier(t.tier, catMap[t.categoryId ?? -1])] += toBase(t.amount, t.currency)
       trend.push({
         month: format(d, 'MMM'),
-        Wealth: Math.round(acc.wealth),
-        Essential: Math.round(acc.essential),
-        Lifestyle: Math.round(acc.lifestyle),
+        wealth: Math.round(acc.wealth),
+        good: Math.round(acc.good),
+        essential: Math.round(acc.essential),
+        lifestyle: Math.round(acc.lifestyle),
       })
     }
 

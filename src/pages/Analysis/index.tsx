@@ -157,7 +157,7 @@ export function Analysis() {
                   <Tooltip {...tooltipStyle} formatter={(v: number) => fmt(v)} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   {TIERS.map(t => (
-                    <Bar key={t.key} dataKey={t.label} stackId="a" fill={t.color} radius={t.key === 'lifestyle' ? [4, 4, 0, 0] : undefined} />
+                    <Bar key={t.key} dataKey={t.key} name={t.label} stackId="a" fill={t.color} radius={t.key === 'lifestyle' ? [4, 4, 0, 0] : undefined} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>

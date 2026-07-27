@@ -114,6 +114,23 @@ class MyFinanceDB extends Dexie {
       }
     })
 
+    // v9: split the old "Good"/wealth tier into "Wealth building" (assets) and
+    // "Good" (beneficial). Move categories to the new 'good' tier only if they
+    // still hold their previous default tier (don't override user choices).
+    this.version(9).stores({}).upgrade(async tx => {
+      const table = tx.table('categories')
+      const moves = [
+        { name: 'Loan',             from: 'wealth',    to: 'good' },
+        { name: 'Education',        from: 'essential', to: 'good' },
+        { name: 'Self development', from: 'essential', to: 'good' },
+        { name: 'Donation',         from: 'lifestyle', to: 'good' },
+      ]
+      for (const m of moves) {
+        const cat = await table.where('name').equals(m.name).first()
+        if (cat && cat.tier === m.from) await table.update(cat.id, { tier: m.to })
+      }
+    })
+
     // v3: add Rent and Mortgage categories if missing
     this.version(3).stores({}).upgrade(async tx => {
       const toAdd = [

@@ -83,10 +83,11 @@ The DB is versioned — **always bump the version** when changing the schema or 
 - v6 — indexed `transactions.externalId` for bank-sync dedupe
 - v7 — assigned expense-quality `tier` to categories (Analysis page)
 - v8 — reorganized default categories (renamed old names, added new ones)
+- v9 — split tiers into 4 (Wealth building / Good / Essential / Lifestyle); moved Loan/Education/Self development/Donation to Good
 
 ## Analysis Page
 - `/analysis` (`src/pages/Analysis/index.tsx`) — expense-quality tiers, month-over-month movers, 6-month tier trend, income sources, biggest expenses. Month navigator like the Dashboard.
-- Expense categories carry an optional `tier` (`wealth` | `essential` | `lifestyle`); definitions + name-based defaults + `tierOf()` live in `src/lib/tiers.ts`. Editable per-category in Settings.
+- Expense categories carry an optional `tier` — 4 tiers `wealth` (label "Wealth building") | `good` | `essential` | `lifestyle`; definitions + name-based defaults + `tierOf()`/`resolveTier()` live in `src/lib/tiers.ts`. Editable per-category in Settings and per-transaction in the transaction form (`Transaction.tier` overrides the category default).
 - All computation is in `src/hooks/useAnalysis.ts` (currency-converted via `convertCurrency`).
 
 ## Cloud Sync (cross-device)
