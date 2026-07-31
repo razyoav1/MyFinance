@@ -19,8 +19,9 @@ export interface MoverStat {
   id: number; name: string; icon: string; color: string
   current: number; previous: number; delta: number; pct: number | null
 }
-export interface TopExpense {
-  id: number; description: string; icon: string; color: string; date: string; value: number
+export interface ExpenseItem {
+  id: number; description: string; icon: string; color: string
+  categoryName: string; date: string; value: number; tier: ExpenseTier
 }
 export type TrendPoint = { month: string } & Record<ExpenseTier, number>
 
@@ -36,7 +37,8 @@ export interface AnalysisData {
   expenseByCategory: CategoryStat[]
   incomeByCategory: CategoryStat[]
   movers: MoverStat[]
-  topExpenses: TopExpense[]
+  expenseItems: ExpenseItem[]   // all expenses this month, sorted by value desc, with resolved tier
+  topExpenses: ExpenseItem[]    // the first 6
   trend: TrendPoint[]
 }
 
@@ -123,14 +125,20 @@ export function useAnalysis(
     }).filter(m => Math.abs(m.delta) > 0.5)
       .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
 
-    // ── Biggest single expenses ─────────────────────────────────────────────────
-    const topExpenses: TopExpense[] = expenseTxns
+    // ── Every expense (with resolved tier) — for tier drill-down + biggest ──────
+    const expenseItems: ExpenseItem[] = expenseTxns
       .map(t => {
         const c = t.categoryId ? catMap[t.categoryId] : undefined
-        return { id: t.id!, description: t.description, icon: c?.icon ?? '💳', color: c?.color ?? '#94a3b8', date: t.date, value: toBase(t.amount, t.currency) }
+        return {
+          id: t.id!, description: t.description,
+          icon: c?.icon ?? '💳', color: c?.color ?? '#94a3b8',
+          categoryName: c?.name ?? 'Uncategorized',
+          date: t.date, value: toBase(t.amount, t.currency),
+          tier: resolveTier(t.tier, c),
+        }
       })
       .sort((a, b) => b.value - a.value)
-      .slice(0, 6)
+    const topExpenses = expenseItems.slice(0, 6)
 
     // ── 6-month tier trend (ending at selected month) ───────────────────────────
     const trend: TrendPoint[] = []
@@ -151,7 +159,7 @@ export function useAnalysis(
 
     return {
       income, expenses, net, savingsRate, wealthAmount, wealthPct, prevMonthLabel,
-      expenseTiers, expenseByCategory, incomeByCategory, movers, topExpenses, trend,
+      expenseTiers, expenseByCategory, incomeByCategory, movers, expenseItems, topExpenses, trend,
     }
   }, [year, month, baseCurrency, JSON.stringify(rates)]) ?? null
 }

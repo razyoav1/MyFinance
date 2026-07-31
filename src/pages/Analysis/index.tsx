@@ -4,7 +4,7 @@ import { useCurrencyStore } from '@/store/useCurrencyStore'
 import { useAnalysis } from '@/hooks/useAnalysis'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { formatCurrency, formatCompact } from '@/lib/currency'
-import { TIERS } from '@/lib/tiers'
+import { TIERS, tierMeta, type ExpenseTier } from '@/lib/tiers'
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -22,6 +22,7 @@ const tooltipStyle = {
 export function Analysis() {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year,  setYear]  = useState(now.getFullYear())
+  const [selectedTier, setSelectedTier] = useState<ExpenseTier | null>(null)
   const { baseCurrency, exchangeRates } = useCurrencyStore()
   const data = useAnalysis(year, month, baseCurrency, exchangeRates)
 
@@ -92,23 +93,31 @@ export function Analysis() {
                       <Tooltip {...tooltipStyle} formatter={(v: number) => fmt(v)} />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="flex flex-col gap-2 mt-2">
-                    {data.expenseTiers.map(t => (
-                      <div key={t.key}>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="flex items-center gap-1.5 text-[var(--color-text)]">
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />
-                            {t.icon} {t.label}
-                          </span>
-                          <span className="text-[var(--color-text-muted)]">{fmt(t.value)} · {t.pct.toFixed(0)}%</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-[var(--color-surface2)] mt-1 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${t.pct}%`, background: t.color }} />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="flex flex-col gap-1 mt-2">
+                    {data.expenseTiers.map(t => {
+                      const active = selectedTier === t.key
+                      return (
+                        <button
+                          key={t.key}
+                          onClick={() => setSelectedTier(active ? null : t.key)}
+                          className={`w-full text-left rounded-lg px-2 -mx-2 py-1 transition-colors ${active ? 'bg-[var(--color-surface2)] ring-1 ring-[var(--color-border)]' : 'hover:bg-[var(--color-surface2)]'}`}
+                        >
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="flex items-center gap-1.5 text-[var(--color-text)]">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />
+                              {t.icon} {t.label}
+                            </span>
+                            <span className="text-[var(--color-text-muted)]">{fmt(t.value)} · {t.pct.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-[var(--color-surface2)] mt-1 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${t.pct}%`, background: t.color }} />
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
                   <p className="text-xs text-[var(--color-text-muted)] mt-3">
+                    Tap a tier to see its expenses.{' '}
                     {lifestyleShare > 35
                       ? `Lifestyle is ${lifestyleShare.toFixed(0)}% of spending — above the ~30% rule of thumb.`
                       : `Lifestyle is ${lifestyleShare.toFixed(0)}% of spending — within a healthy range.`}
@@ -145,6 +154,48 @@ export function Analysis() {
                 </div>
               )}
             </Card>
+
+            {/* Tier drill-down (appears when a tier is selected above) */}
+            {selectedTier && (() => {
+              const m = tierMeta(selectedTier)
+              const items = data.expenseItems.filter(e => e.tier === selectedTier)
+              const total = items.reduce((s, e) => s + e.value, 0)
+              return (
+                <Card className="md:col-span-2">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>
+                        <span style={{ color: m.color }}>{m.icon} {m.label}</span> expenses
+                      </CardTitle>
+                      <button onClick={() => setSelectedTier(null)} className="text-xs text-[var(--color-accent)] hover:underline">Clear</button>
+                    </div>
+                  </CardHeader>
+                  {items.length === 0 ? (
+                    <p className="text-sm text-[var(--color-text-muted)] text-center py-6">No {m.label} expenses this month</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-[var(--color-text-muted)] mb-2">
+                        {items.length} expense{items.length !== 1 ? 's' : ''} · {fmt(total)}
+                      </p>
+                      <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+                        {items.map(e => (
+                          <div key={e.id} className="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0">
+                            <span className="flex items-center gap-3 min-w-0">
+                              <span className="text-xl shrink-0">{e.icon}</span>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium text-[var(--color-text)] truncate">{e.description}</span>
+                                <span className="block text-xs text-[var(--color-text-muted)]">{e.categoryName} · {e.date}</span>
+                              </span>
+                            </span>
+                            <span className="text-sm font-semibold text-[var(--color-text)] shrink-0 ml-2">{fmt(e.value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </Card>
+              )
+            })()}
 
             {/* 6-month tier trend */}
             <Card className="md:col-span-2">
