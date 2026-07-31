@@ -8,11 +8,12 @@ import type { Transaction } from '@/types'
  *
  * - Recurring transactions are grouped into a series by type + category +
  *   description; the LATEST entry of each series is the template.
- * - While the next occurrence date (latest date + interval) is today or in
- *   the past, a real transaction is created for it. Future dates are never
- *   created ahead of time.
- * - Naturally idempotent: once the latest occurrence is current, the next
- *   date is in the future and reruns do nothing.
+ * - Occurrences are created from the template forward through the END OF THE
+ *   CURRENT YEAR, so the remaining months already show the recurring items
+ *   (rent, salary, subscriptions…) for planning. Past-due gaps are filled too.
+ * - Naturally idempotent: once occurrences reach year-end, the next date is
+ *   past the horizon and reruns do nothing. In a new year the horizon moves
+ *   and the next year's occurrences fill in.
  *
  * Note: monthly dates on the 29th-31st clamp to shorter months (Jan 31 →
  * Feb 28) and keep the clamped day afterwards - fine for typical bills.
@@ -57,7 +58,9 @@ async function generateDueOccurrences(): Promise<number> {
     if (!cur || t.date > cur.date) latestPerSeries.set(key, t)
   }
 
-  const today = format(new Date(), DATE_FMT)
+  // Project recurring transactions through the end of the current year, so the
+  // remaining months already show them (not just up to today).
+  const horizon = `${new Date().getFullYear()}-12-31`
   const now = new Date().toISOString()
   const toAdd: Omit<Transaction, 'id'>[] = []
 
@@ -65,7 +68,7 @@ async function generateDueOccurrences(): Promise<number> {
     const interval = template.recurringInterval ?? 'monthly'
     let last = template.date
     let guard = 0
-    for (let due = nextDate(last, interval); due <= today && guard < 36; due = nextDate(last, interval), guard++) {
+    for (let due = nextDate(last, interval); due <= horizon && guard < 500; due = nextDate(last, interval), guard++) {
       toAdd.push({
         type: template.type,
         amount: template.amount,
