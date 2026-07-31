@@ -41,6 +41,8 @@ export function Dashboard() {
 
   const savingsRate = calcSavingsRate(stats.income, stats.expenses)
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
+  // Allow browsing/planning forward through the end of the current year
+  const atYearEnd = year === now.getFullYear() && month === 12
 
   const prevMonth = () => {
     if (month === 1) { setMonth(12); setYear(y => y - 1) }
@@ -81,7 +83,7 @@ export function Dashboard() {
             </span>
             <button
               onClick={nextMonth}
-              disabled={isCurrentMonth}
+              disabled={atYearEnd}
               className="p-1 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronRight size={15} />

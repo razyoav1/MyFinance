@@ -27,6 +27,7 @@ export function Analysis() {
   const data = useAnalysis(year, month, baseCurrency, exchangeRates)
 
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
+  const atYearEnd = year === now.getFullYear() && month === 12
   const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const nextMonth = () => { if (month === 12) { setMonth(1); setYear(y => y + 1) } else setMonth(m => m + 1) }
 
@@ -46,7 +47,7 @@ export function Analysis() {
           <span className="text-sm font-semibold text-[var(--color-text)] min-w-[90px] text-center select-none">
             {MONTH_NAMES[month - 1]} {year}
           </span>
-          <button onClick={nextMonth} disabled={isCurrentMonth}
+          <button onClick={nextMonth} disabled={atYearEnd}
             className="p-1 rounded hover:bg-[var(--color-surface2)] text-[var(--color-text-muted)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
             <ChevronRight size={15} />
           </button>

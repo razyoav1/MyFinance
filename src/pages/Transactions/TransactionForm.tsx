@@ -92,8 +92,8 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Edit Transaction' : 'Add Transaction'}>
-      <div className="flex flex-col gap-4">
+    <Modal open={open} onClose={onClose} title={editing ? 'Edit Transaction' : 'Add Transaction'} size="lg">
+      <div className="flex flex-col gap-3">
         {/* Type toggle */}
         <div className="flex rounded-lg overflow-hidden border border-[var(--color-border)]">
           {(['expense', 'income'] as const).map(t => (
@@ -113,7 +113,7 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
           ))}
         </div>
 
-        {/* Amount + Currency */}
+        {/* Amount + Currency + Date */}
         <div className="flex gap-2">
           <Input
             label="Amount"
@@ -129,12 +129,19 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
             label="Currency"
             value={form.currency}
             onChange={e => set('currency', e.target.value)}
-            className="w-24"
+            className="w-20"
           >
             {CURRENCIES.map(c => (
               <option key={c.code} value={c.code}>{c.code}</option>
             ))}
           </Select>
+          <Input
+            label="Date"
+            type="date"
+            value={form.date}
+            onChange={e => set('date', e.target.value)}
+            className="w-40"
+          />
         </div>
 
         <Input
@@ -144,54 +151,48 @@ export function TransactionForm({ open, onClose, editing, onSaved }: Props) {
           onChange={e => set('description', e.target.value)}
         />
 
-        <div className="flex gap-2">
+        {/* Category + Quality (expense) */}
+        <div className={`grid gap-2 ${form.type === 'expense' ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <Select
             label="Category"
             value={form.categoryId}
             onChange={e => set('categoryId', e.target.value)}
-            className="flex-1"
           >
             <option value="">Select category...</option>
             {filtered.map(c => (
               <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
             ))}
           </Select>
-          <Input
-            label="Date"
-            type="date"
-            value={form.date}
-            onChange={e => set('date', e.target.value)}
-            className="w-36"
-          />
+          {form.type === 'expense' && (
+            <Select
+              label="Quality (for Analysis)"
+              value={form.tier}
+              onChange={e => set('tier', e.target.value)}
+            >
+              <option value="">Follows category ({defaultTierMeta.icon} {defaultTierMeta.label})</option>
+              {TIERS.map(t => (
+                <option key={t.key} value={t.key}>{t.icon} {t.label}</option>
+              ))}
+            </Select>
+          )}
         </div>
 
-        {/* Expense quality — overrides the category default on the Analysis page */}
-        {form.type === 'expense' && (
-          <Select
-            label="Quality (for Analysis)"
-            value={form.tier}
-            onChange={e => set('tier', e.target.value)}
-          >
-            <option value="">Follows category ({defaultTierMeta.icon} {defaultTierMeta.label})</option>
-            {TIERS.map(t => (
-              <option key={t.key} value={t.key}>{t.icon} {t.label}</option>
-            ))}
-          </Select>
-        )}
-
-        <Input
-          label="Tags (comma separated)"
-          placeholder="groceries, weekly, work..."
-          value={form.tags}
-          onChange={e => set('tags', e.target.value)}
-        />
-
-        <Textarea
-          label="Notes"
-          placeholder="Optional notes..."
-          value={form.notes}
-          onChange={e => set('notes', e.target.value)}
-        />
+        {/* Tags + Notes */}
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            label="Tags (comma separated)"
+            placeholder="groceries, work..."
+            value={form.tags}
+            onChange={e => set('tags', e.target.value)}
+          />
+          <Textarea
+            label="Notes"
+            rows={2}
+            placeholder="Optional notes..."
+            value={form.notes}
+            onChange={e => set('notes', e.target.value)}
+          />
+        </div>
 
         {/* Recurring */}
         <div className="flex items-center gap-3">
