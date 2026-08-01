@@ -73,6 +73,7 @@ The DB is versioned — **always bump the version** when changing the schema or 
 | `goalContributions` | `++id, goalId, date` |
 | `netWorthSnapshots` | `++id, snapshotDate` |
 | `bankAccounts` | `++id, type, currency` |
+| `budgets` | `++id, categoryId` |
 
 **Current DB version: 8**
 - v1 — initial schema
@@ -84,6 +85,11 @@ The DB is versioned — **always bump the version** when changing the schema or 
 - v7 — assigned expense-quality `tier` to categories (Analysis page)
 - v8 — reorganized default categories (renamed old names, added new ones)
 - v9 — split tiers into 4 (Wealth building / Good / Essential / Lifestyle); moved Loan/Education/Self development/Donation to Good
+- v10 — added `budgets` table (Budget planning page)
+
+## Budget Page
+- `/budget` (`src/pages/Budget/index.tsx`) — per-category monthly limit (repeats every month), actual-vs-budget progress grouped by quality tier, inline-editable budget inputs, over/under indicators. Month navigator (forward to year-end).
+- One `Budget` row per category (`amount` in base currency). CRUD + combined plan in `src/hooks/useBudgets.ts` (`setBudget()`, `useBudgetPlan()`).
 
 ## Analysis Page
 - `/analysis` (`src/pages/Analysis/index.tsx`) — expense-quality tiers, month-over-month movers, 6-month tier trend, income sources, biggest expenses. Month navigator like the Dashboard.

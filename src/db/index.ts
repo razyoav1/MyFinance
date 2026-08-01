@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type {
   Category, Transaction, InvestmentHolding, InvestmentPriceHistory,
-  Mortgage, MortgagePayment, SavingsGoal, GoalContribution, NetWorthSnapshot, BankAccount
+  Mortgage, MortgagePayment, SavingsGoal, GoalContribution, NetWorthSnapshot, BankAccount, Budget
 } from '@/types'
 import { DEFAULT_CATEGORIES } from '@/lib/categories'
 import { DEFAULT_TIER_BY_NAME } from '@/lib/tiers'
@@ -17,6 +17,7 @@ class MyFinanceDB extends Dexie {
   goalContributions!: EntityTable<GoalContribution, 'id'>
   netWorthSnapshots!: EntityTable<NetWorthSnapshot, 'id'>
   bankAccounts!: EntityTable<BankAccount, 'id'>
+  budgets!: EntityTable<Budget, 'id'>
 
   constructor() {
     super('MyFinanceDB')
@@ -129,6 +130,11 @@ class MyFinanceDB extends Dexie {
         const cat = await table.where('name').equals(m.name).first()
         if (cat && cat.tier === m.from) await table.update(cat.id, { tier: m.to })
       }
+    })
+
+    // v10: per-category monthly budgets (Budget planning page)
+    this.version(10).stores({
+      budgets: '++id, categoryId',
     })
 
     // v3: add Rent and Mortgage categories if missing

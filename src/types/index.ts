@@ -116,6 +116,13 @@ export interface NetWorthSnapshot {
   currency: string
 }
 
+export interface Budget {
+  id?: number
+  categoryId: number
+  amount: number       // monthly limit, in the user's base currency
+  updatedAt: string
+}
+
 export type BankAccountType = 'checking' | 'savings' | 'credit' | 'cash'
 
 export interface BankAccount {
