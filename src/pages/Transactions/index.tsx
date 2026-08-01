@@ -13,7 +13,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { ImportModal } from '@/components/ImportModal'
 import { LoadingSpinner } from '@/components/ui/Loading'
 import { Transaction } from '@/types'
-import { tierMeta } from '@/lib/tiers'
+import { tierMeta, resolveTier } from '@/lib/tiers'
 import { formatCurrency } from '@/lib/currency'
 import { useCurrencyStore } from '@/store/useCurrencyStore'
 import { toast } from '@/store/useToastStore'
@@ -156,13 +156,16 @@ export function Transactions() {
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         {cat && <Badge color={cat.color}>{cat.icon} {cat.name}</Badge>}
-                        {t.tier && (
-                          <span
-                            title={`Quality override: ${tierMeta(t.tier).label}`}
-                            className="inline-block w-2 h-2 rounded-full ml-1.5 align-middle"
-                            style={{ background: tierMeta(t.tier).color }}
-                          />
-                        )}
+                        {t.type === 'expense' && (cat || t.tier) && (() => {
+                          const m = tierMeta(resolveTier(t.tier, cat))
+                          return (
+                            <span
+                              title={`Quality: ${m.label}${t.tier ? ' (override)' : ' (from category)'}`}
+                              className="inline-block w-2 h-2 rounded-full ml-1.5 align-middle"
+                              style={{ background: m.color }}
+                            />
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell text-xs text-[var(--color-text-muted)] max-w-[220px] truncate" title={t.notes || undefined}>
                         {t.notes}
